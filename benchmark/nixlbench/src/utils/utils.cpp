@@ -47,7 +47,7 @@ DEFINE_string(worker_type, XFERBENCH_WORKER_NIXL, "Type of worker [nixl, nvshmem
 DEFINE_string(
     backend,
     XFERBENCH_BACKEND_UCX,
-    "Name of NIXL backend [UCX, UCX_MO, GDS, GDS_MT, POSIX, GPUNETIO, Mooncake, HF3FS, OBJ] \
+    "Name of NIXL backend [UCX, UCX_MO, GDS, GDS_MT, POSIX, GPUNETIO, Mooncake, HF3FS, OBJ, AIStor] \
               (only used with nixl worker)");
 DEFINE_string(initiator_seg_type, XFERBENCH_SEG_TYPE_DRAM, "Type of memory segment for initiator \
               [DRAM, VRAM]");
@@ -82,7 +82,7 @@ DEFINE_bool(enable_pt, false, "Enable Progress Thread (only used with nixl worke
 DEFINE_uint64(progress_threads, 0, "Number of progress threads (default: 0)");
 DEFINE_bool(enable_vmm, false, "Enable VMM memory allocation when DRAM is requested");
 
-// Storage backend(GDS, GDS_MT, POSIX, HF3FS, OBJ) options
+// Storage backend(GDS, GDS_MT, POSIX, HF3FS, OBJ, AIStor) options
 DEFINE_string (filepath, "", "File path for storage operations");
 DEFINE_int32 (num_files, 1, "Number of files used by benchmark");
 DEFINE_bool (storage_enable_direct, false, "Enable direct I/O for storage operations");
@@ -108,7 +108,7 @@ DEFINE_string (posix_api_type,
 DEFINE_string(gpunetio_device_list, "0", "Comma-separated GPU CUDA device id to use for \
 		      communication (only used with nixl worker)");
 
-// OBJ options - only used when backend is OBJ
+// OBJ options - only used when backend is OBJ or AIStor
 DEFINE_string(obj_access_key, "", "Access key for S3 backend");
 DEFINE_string(obj_secret_key, "", "Secret key for S3 backend");
 DEFINE_string(obj_session_token, "", "Session token for S3 backend");
@@ -249,6 +249,16 @@ xferBenchConfig::loadFromFlags() {
                 return -1;
             }
         }
+
+
+        // Load AIStor-specific configurations if backend is AIStor
+        if (backend == XFERBENCH_BACKEND_AISTOR) {
+            obj_access_key = FLAGS_obj_access_key;
+            obj_secret_key = FLAGS_obj_secret_key;
+            obj_bucket_name = FLAGS_obj_bucket_name;
+            obj_region = FLAGS_obj_region;
+            obj_endpoint_override = FLAGS_obj_endpoint_override;
+        }
     }
 
     initiator_seg_type = FLAGS_initiator_seg_type;
@@ -371,7 +381,7 @@ xferBenchConfig::printConfig() {
     }
     printOption("Worker type (--worker_type=[nixl,nvshmem])", worker_type);
     if (worker_type == XFERBENCH_WORKER_NIXL) {
-        printOption("Backend (--backend=[UCX,UCX_MO,GDS,GDS_MT,POSIX,Mooncake,HF3FS,OBJ])",
+        printOption("Backend (--backend=[UCX,UCX_MO,GDS,GDS_MT,POSIX,Mooncake,HF3FS,OBJ,AIStor])",
                     backend);
         printOption ("Enable pt (--enable_pt=[0,1])", std::to_string (enable_pt));
         printOption("Progress threads (--progress_threads=N)", std::to_string(progress_threads));
@@ -409,6 +419,17 @@ xferBenchConfig::printConfig() {
                         obj_endpoint_override);
             printOption("OBJ S3 required checksum (--obj_req_checksum=[supported, required])",
                         obj_req_checksum);
+        }
+
+
+        // Print AIStor options if backend is AIStor
+        if (backend == XFERBENCH_BACKEND_AISTOR) {
+            printOption("AIStor access key (--obj_access_key=key)", obj_access_key);
+            printOption("AIStor secret key (--obj_secret_key=key)", obj_secret_key);
+            printOption("AIStor bucket name (--obj_bucket_name=nixlbench-bucket)", obj_bucket_name);
+            printOption("AIStor region (--obj_region=region)", obj_region);
+            printOption("AIStor endpoint override (--obj_endpoint_override=endpoint)",
+                        obj_endpoint_override);
         }
 
         if (xferBenchConfig::isStorageBackend()) {
@@ -479,8 +500,10 @@ xferBenchConfig::isStorageBackend() {
             XFERBENCH_BACKEND_GDS_MT == xferBenchConfig::backend ||
             XFERBENCH_BACKEND_HF3FS == xferBenchConfig::backend ||
             XFERBENCH_BACKEND_POSIX == xferBenchConfig::backend ||
-            XFERBENCH_BACKEND_OBJ == xferBenchConfig::backend);
+            XFERBENCH_BACKEND_OBJ == xferBenchConfig::backend ||
+            XFERBENCH_BACKEND_AISTOR == xferBenchConfig::backend);
 }
+
 /**********
  * xferBench Utils
  **********/
@@ -543,7 +566,7 @@ void xferBenchUtils::checkConsistency(std::vector<std::vector<xferBenchIOV>> &io
                 } else if (xferBenchConfig::op_type == XFERBENCH_OP_WRITE) {
                     addr = calloc(1, len);
                     is_allocated = true;
-                    if (xferBenchConfig::backend == XFERBENCH_BACKEND_OBJ) {
+                    if ((xferBenchConfig::backend == XFERBENCH_BACKEND_OBJ) || (xferBenchConfig::backend == XFERBENCH_BACKEND_AISTOR)) {
                         if (!getObjS3(iov.metaInfo)) {
                             std::cerr << "Failed to get S3 object: " << iov.metaInfo << std::endl;
                             exit(EXIT_FAILURE);
