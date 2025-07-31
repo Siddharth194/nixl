@@ -580,7 +580,8 @@ xferBenchNixlWorker::allocateMemory(int num_lists) {
 
     opt_args.backends.push_back(backend_engine);
 
-    if ((xferBenchConfig::backend == XFERBENCH_BACKEND_OBJ) || (xferBenchConfig::backend == XFERBENCH_BACKEND_AISTOR)) {
+    if ((xferBenchConfig::backend == XFERBENCH_BACKEND_OBJ) ||
+        (xferBenchConfig::backend == XFERBENCH_BACKEND_AISTOR)) {
         struct timeval tv;
         gettimeofday(&tv, nullptr);
         uint64_t timestamp = tv.tv_sec * 1000000ULL + tv.tv_usec;
@@ -717,7 +718,8 @@ xferBenchNixlWorker::deallocateMemory(std::vector<std::vector<xferBenchIOV>> &io
         CHECK_NIXL_ERROR(agent->deregisterMem(desc_list, &opt_args), "deregisterMem failed");
     }
 
-    if ((xferBenchConfig::backend == XFERBENCH_BACKEND_OBJ) || (xferBenchConfig::backend == XFERBENCH_BACKEND_AISTOR)) {
+    if ((xferBenchConfig::backend == XFERBENCH_BACKEND_OBJ) ||
+        (xferBenchConfig::backend == XFERBENCH_BACKEND_AISTOR)) {
         for (auto &iov_list : remote_iovs) {
             for (auto &iov : iov_list) {
                 cleanupBasicDescObj(iov);
@@ -902,7 +904,8 @@ execTransfer(nixlAgent *agent,
         nixl_xfer_dlist_t local_desc(GET_SEG_TYPE(true));
         nixl_xfer_dlist_t remote_desc(GET_SEG_TYPE(false));
 
-        if ((XFERBENCH_BACKEND_OBJ == xferBenchConfig::backend) || (XFERBENCH_BACKEND_AISTOR == xferBenchConfig::backend)) {
+        if ((XFERBENCH_BACKEND_OBJ == xferBenchConfig::backend) ||
+            (XFERBENCH_BACKEND_AISTOR == xferBenchConfig::backend)) {
             remote_desc = nixl_xfer_dlist_t(OBJ_SEG);
         } else if (xferBenchConfig::isStorageBackend()) {
             remote_desc = nixl_xfer_dlist_t(FILE_SEG);
