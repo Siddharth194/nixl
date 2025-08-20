@@ -90,8 +90,12 @@ DEFINE_int32(num_files, 1, "Number of files used by benchmark");
 DEFINE_bool(storage_enable_direct, false, "Enable direct I/O for storage operations");
 
 // GDS options - only used when backend is GDS
-DEFINE_int32(gds_batch_pool_size, 32, "Batch pool size for GDS operations (default: 32, only used with GDS backend)");
-DEFINE_int32(gds_batch_limit, 128, "Batch limit for GDS operations (default: 128, only used with GDS backend)");
+DEFINE_int32(gds_batch_pool_size,
+             32,
+             "Batch pool size for GDS operations (default: 32, only used with GDS backend)");
+DEFINE_int32(gds_batch_limit,
+             128,
+             "Batch limit for GDS operations (default: 128, only used with GDS backend)");
 DEFINE_int32(gds_mt_num_threads, 1, "Number of threads used by GDS MT plugin (Default: 1)");
 
 // TODO: We should take rank wise device list as input to extend support
@@ -464,7 +468,7 @@ xferBenchConfig::printConfig() {
     printOption("Warmup iter (--warmup_iter=N)", std::to_string(warmup_iter));
     printOption("Large block iter factor (--large_blk_iter_ftr=N)",
                 std::to_string(large_blk_iter_ftr));
-    printOption ("Num threads (--num_threads=N)", std::to_string (num_threads));
+    printOption("Num threads (--num_threads=N)", std::to_string(num_threads));
     printSeparator('-');
     std::cout << std::endl;
 }
@@ -719,8 +723,8 @@ xferBenchUtils::printStats(bool is_target,
         avg_latency /= xferBenchConfig::num_initiator_dev; // In microsec
     }
 
-    throughput_gb = (((double) total_data_transferred / (1000 * 1000 * 1000)) /
-                   (total_duration / 1e6));   // In GB/Sec
+    throughput_gb = (((double)total_data_transferred / (1000 * 1000 * 1000)) /
+                     (total_duration / 1e6)); // In GB/Sec
 
     if (IS_PAIRWISE_AND_SG() && rt->getSize() > 2) {
         rt->reduceSumDouble(&throughput_gb, &totalbw, 0);

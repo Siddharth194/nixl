@@ -806,7 +806,8 @@ xferBenchNixlWorker::exchangeIOV(const std::vector<std::vector<xferBenchIOV>> &l
         for (auto &iov_list : local_iovs) {
             std::vector<xferBenchIOV> remote_iov_list;
             for (auto &iov : iov_list) {
-                if ((XFERBENCH_BACKEND_OBJ == xferBenchConfig::backend) || (XFERBENCH_BACKEND_AISTOR == xferBenchConfig::backend)) {
+                if ((XFERBENCH_BACKEND_OBJ == xferBenchConfig::backend) ||
+                    (XFERBENCH_BACKEND_AISTOR == xferBenchConfig::backend)) {
                     std::optional<xferBenchIOV> basic_desc;
                     basic_desc = initBasicDescObj(iov.len, iov.devId, iov.metaInfo);
                     if (basic_desc) {

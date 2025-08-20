@@ -125,64 +125,64 @@
      XFERBENCH_MODE_MG == xferBenchConfig::mode)
 
 class xferBenchConfig {
-    public:
-        static std::string runtime_type;
-        static std::string worker_type;
-        static std::string backend;
-        static std::string initiator_seg_type;
-        static std::string target_seg_type;
-        static std::string scheme;
-        static std::string mode;
-        static std::string op_type;
-        static bool check_consistency;
-        static size_t total_buffer_size;
-        static int num_initiator_dev;
-        static int num_target_dev;
-        static size_t start_block_size;
-        static size_t max_block_size;
-        static size_t start_batch_size;
-        static size_t max_batch_size;
-        static int num_iter;
-        static int large_blk_iter_ftr;
-        static int warmup_iter;
-        static int num_threads;
-        static bool enable_pt;
-        static size_t progress_threads;
-        static std::string device_list;
-        static std::string etcd_endpoints;
-        static std::string benchmark_group;
-        static std::string filepath;
-        static bool enable_vmm;
-        static int num_files;
-        static std::string posix_api_type;
-        static bool storage_enable_direct;
-        static int gds_batch_pool_size;
-        static int gds_batch_limit;
-        static int gds_mt_num_threads;
-        static std::string gpunetio_device_list;
-        static long page_size;
-        static std::string obj_access_key;
-        static std::string obj_secret_key;
-        static std::string obj_session_token;
-        static std::string obj_bucket_name;
-        static std::string obj_scheme;
-        static std::string obj_region;
-        static bool obj_use_virtual_addressing;
-        static std::string obj_endpoint_override;
-        static std::string obj_req_checksum;
+public:
+    static std::string runtime_type;
+    static std::string worker_type;
+    static std::string backend;
+    static std::string initiator_seg_type;
+    static std::string target_seg_type;
+    static std::string scheme;
+    static std::string mode;
+    static std::string op_type;
+    static bool check_consistency;
+    static size_t total_buffer_size;
+    static int num_initiator_dev;
+    static int num_target_dev;
+    static size_t start_block_size;
+    static size_t max_block_size;
+    static size_t start_batch_size;
+    static size_t max_batch_size;
+    static int num_iter;
+    static int large_blk_iter_ftr;
+    static int warmup_iter;
+    static int num_threads;
+    static bool enable_pt;
+    static size_t progress_threads;
+    static std::string device_list;
+    static std::string etcd_endpoints;
+    static std::string benchmark_group;
+    static std::string filepath;
+    static bool enable_vmm;
+    static int num_files;
+    static std::string posix_api_type;
+    static bool storage_enable_direct;
+    static int gds_batch_pool_size;
+    static int gds_batch_limit;
+    static int gds_mt_num_threads;
+    static std::string gpunetio_device_list;
+    static long page_size;
+    static std::string obj_access_key;
+    static std::string obj_secret_key;
+    static std::string obj_session_token;
+    static std::string obj_bucket_name;
+    static std::string obj_scheme;
+    static std::string obj_region;
+    static bool obj_use_virtual_addressing;
+    static std::string obj_endpoint_override;
+    static std::string obj_req_checksum;
 
-        static int
-        loadFromFlags();
-        static void
-        printConfig();
-        static void
-        printOption(const std::string &desc, const std::string &value);
-        static void
-        printSeparator(const char sep = '-');
-        static std::vector<std::string>
-        parseDeviceList();
-        static bool
-        isStorageBackend();
+    static int
+    loadFromFlags();
+    static void
+    printConfig();
+    static void
+    printOption(const std::string &desc, const std::string &value);
+    static void
+    printSeparator(const char sep = '-');
+    static std::vector<std::string>
+    parseDeviceList();
+    static bool
+    isStorageBackend();
 };
 
 // Timer class for measuring durations at high resolution
@@ -280,12 +280,12 @@ private:
     static xferBenchRT *rt;
     static std::string dev_to_use;
 
-        static void
-        checkConsistency(std::vector<std::vector<xferBenchIOV>> &desc_lists);
-        static void
-        printStatsHeader();
-        static void
-        printStats(bool is_target, size_t block_size, size_t batch_size, xferBenchStats stats);
+    static void
+    checkConsistency(std::vector<std::vector<xferBenchIOV>> &desc_lists);
+    static void
+    printStatsHeader();
+    static void
+    printStats(bool is_target, size_t block_size, size_t batch_size, xferBenchStats stats);
 };
 
 #endif // __UTILS_H
