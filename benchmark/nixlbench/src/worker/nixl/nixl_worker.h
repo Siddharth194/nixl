@@ -79,6 +79,7 @@ class xferBenchNixlWorker: public xferBenchWorker {
         std::optional<xferBenchIOV> initBasicDescVram(size_t buffer_size, int mem_dev_id);
         void cleanupBasicDescVram(xferBenchIOV &basic_desc);
 
+#endif
         // GDAKI signal buffer management
         std::optional<xferBenchIOV>
         initSignalBuffer(int mem_dev_id);
@@ -92,7 +93,6 @@ class xferBenchNixlWorker: public xferBenchWorker {
         // GDAKI bidirectional metadata exchange
         int
         exchangeMetadataBidirectional();
-#endif
         std::optional<xferBenchIOV>
         initBasicDescFile(size_t buffer_size, xferFileState &fstate, int mem_dev_id);
         void cleanupBasicDescFile(xferBenchIOV &basic_desc);

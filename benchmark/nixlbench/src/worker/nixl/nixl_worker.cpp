@@ -1325,20 +1325,20 @@ xferBenchNixlWorker::transfer(size_t block_size,
 
 void
 xferBenchNixlWorker::poll(size_t block_size) {
+    int skip = 0, num_iter = 0, total_iter = 0;
+
+    skip = xferBenchConfig::warmup_iter;
+    num_iter = xferBenchConfig::num_iter;
+
+    // Reduce skip by 10x for large block sizes
+    if (block_size > LARGE_BLOCK_SIZE) {
+        skip /= xferBenchConfig::large_blk_iter_ftr;
+        num_iter /= xferBenchConfig::large_blk_iter_ftr;
+    }
+    total_iter = skip + num_iter;
+
     if (is_gdaki_enabled) {
         // GDAKI mode: Target monitors signal buffer instead of waiting for notifications
-
-        uint64_t skip = xferBenchConfig::warmup_iter;
-        uint64_t num_iter = xferBenchConfig::num_iter;
-
-        // Reduce iterations for large block sizes (same logic as transfer())
-        if (block_size > LARGE_BLOCK_SIZE) {
-            skip /= LARGE_BLOCK_SIZE_ITER_FACTOR;
-            num_iter /= LARGE_BLOCK_SIZE_ITER_FACTOR;
-        }
-
-        uint64_t total_iter = skip + num_iter;
-
         // Monitor signal buffer if we have one
         if (!signal_buffers.empty()) {
             const auto &signal_buffer = signal_buffers[0]; // Use first signal buffer
@@ -1374,16 +1374,6 @@ xferBenchNixlWorker::poll(size_t block_size) {
     // Standard polling for non-GDAKI transfers
     nixl_notifs_t notifs;
     nixl_status_t status;
-    int skip = 0, num_iter = 0, total_iter = 0;
-
-    skip = xferBenchConfig::warmup_iter;
-    num_iter = xferBenchConfig::num_iter;
-    // Reduce skip by 10x for large block sizes
-    if (block_size > LARGE_BLOCK_SIZE) {
-        skip /= xferBenchConfig::large_blk_iter_ftr;
-        num_iter /= xferBenchConfig::large_blk_iter_ftr;
-    }
-    total_iter = skip + num_iter;
 
     /* Ensure warmup is done*/
     do {
