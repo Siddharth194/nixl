@@ -46,6 +46,7 @@ class xferBenchNixlWorker: public xferBenchWorker {
         // GDAKI signal buffer support
         std::vector<xferBenchIOV> signal_buffers;
         bool is_gdaki_enabled;
+
     public:
         xferBenchNixlWorker(int *argc, char ***argv, std::vector<std::string> devices);
         ~xferBenchNixlWorker();  // Custom destructor to clean up resources
@@ -81,13 +82,16 @@ class xferBenchNixlWorker: public xferBenchWorker {
         // GDAKI signal buffer management
         std::optional<xferBenchIOV>
         initSignalBuffer(int mem_dev_id);
-        void cleanupSignalBuffer(xferBenchIOV &signal_desc);
+        void
+        cleanupSignalBuffer(xferBenchIOV &signal_desc);
 
         // GDAKI wireup notification
-        int sendWireupMessage();
+        int
+        sendWireupMessage();
 
         // GDAKI bidirectional metadata exchange
-        int exchangeMetadataBidirectional();
+        int
+        exchangeMetadataBidirectional();
 #endif
         std::optional<xferBenchIOV>
         initBasicDescFile(size_t buffer_size, xferFileState &fstate, int mem_dev_id);

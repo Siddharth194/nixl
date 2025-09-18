@@ -600,7 +600,8 @@ xferBenchNixlWorker::cleanupSignalBuffer(xferBenchIOV &signal_desc) {
         break;
 #endif
     default:
-        std::cerr << "GDAKI: Unsupported signal buffer memory type for cleanup: " << seg_type << std::endl;
+        std::cerr << "GDAKI: Unsupported signal buffer memory type for cleanup: " << seg_type
+                  << std::endl;
         break;
     }
 }
@@ -612,7 +613,7 @@ xferBenchNixlWorker::sendWireupMessage() {
     }
 
     // Helper lambdas to avoid code duplication
-    auto send_wireup_notification = [&](const std::string& remote_name) -> int {
+    auto send_wireup_notification = [&](const std::string &remote_name) -> int {
         int retry_count = 0;
         const int max_retries = 10;
         nixl_status_t notif_status;
@@ -627,13 +628,14 @@ xferBenchNixlWorker::sendWireupMessage() {
         } while (notif_status != NIXL_SUCCESS && retry_count < max_retries);
 
         if (notif_status != NIXL_SUCCESS) {
-            std::cerr << "GDAKI: Failed to send wireup completion notification after retries" << std::endl;
+            std::cerr << "GDAKI: Failed to send wireup completion notification after retries"
+                      << std::endl;
             return -1;
         }
         return 0;
     };
 
-    auto wait_for_ack = [&](const std::string& remote_name) -> int {
+    auto wait_for_ack = [&](const std::string &remote_name) -> int {
         bool ack_received = false;
         const int max_ack_attempts = 50;
         nixl_opt_args_t extra_params = {};
@@ -658,7 +660,8 @@ xferBenchNixlWorker::sendWireupMessage() {
             }
         }
         if (!ack_received) {
-            std::cerr << "GDAKI: Timeout waiting for wireup acknowledgment from " << remote_name << std::endl;
+            std::cerr << "GDAKI: Timeout waiting for wireup acknowledgment from " << remote_name
+                      << std::endl;
             return -1;
         }
         return 0;
@@ -702,8 +705,8 @@ xferBenchNixlWorker::exchangeMetadataBidirectional() {
     // Determine peer rank for communication
     int peer_rank;
     if (IS_PAIRWISE_AND_SG()) {
-        peer_rank = isTarget() ? rt->getRank() - xferBenchConfig::num_target_dev
-                               : rt->getRank() + xferBenchConfig::num_initiator_dev;
+        peer_rank = isTarget() ? rt->getRank() - xferBenchConfig::num_target_dev :
+                                 rt->getRank() + xferBenchConfig::num_initiator_dev;
     } else {
         peer_rank = isTarget() ? 0 : 1;
     }
@@ -729,16 +732,14 @@ xferBenchNixlWorker::exchangeMetadataBidirectional() {
     if (isTarget()) {
         send_metadata(peer_rank);
     } else { // isInitiator
-        if (recv_and_load_metadata(peer_rank) != 0)
-            ret = -1;
+        if (recv_and_load_metadata(peer_rank) != 0) ret = -1;
     }
 
     // Phase 2: Initiator sends, Target receives
     if (isInitiator()) {
         send_metadata(peer_rank);
     } else { // isTarget
-        if (recv_and_load_metadata(peer_rank) != 0)
-            ret = -1;
+        if (recv_and_load_metadata(peer_rank) != 0) ret = -1;
     }
 
     return ret;
@@ -877,7 +878,8 @@ xferBenchNixlWorker::allocateMemory(int num_threads) {
                 iov_list.push_back(signal_desc.value());
                 signal_buffers.push_back(signal_desc.value());
             } else {
-                std::cerr << "GDAKI: Failed to allocate signal buffer for list " << list_idx << std::endl;
+                std::cerr << "GDAKI: Failed to allocate signal buffer for list " << list_idx
+                          << std::endl;
             }
         }
 
@@ -918,8 +920,8 @@ xferBenchNixlWorker::deallocateMemory(std::vector<std::vector<xferBenchIOV>> &io
     }
 
     // Clean up signal buffers for GDAKI
-    // Note: Signal buffers are already cleaned up in the main loop above since they're part of iov_lists
-    // We just need to clear the signal_buffers vector to avoid confusion
+    // Note: Signal buffers are already cleaned up in the main loop above since they're part of
+    // iov_lists We just need to clear the signal_buffers vector to avoid confusion
     if (is_gdaki_enabled) {
         signal_buffers.clear();
     }
@@ -971,22 +973,22 @@ xferBenchNixlWorker::exchangeMetadata() {
 
             if (IS_PAIRWISE_AND_SG()) {
                 destrank = rt->getRank() - xferBenchConfig::num_target_dev;
-                //XXX: Fix up the rank, depends on processes distributed on hosts
-                //assumes placement is adjacent ranks to same node
+                // XXX: Fix up the rank, depends on processes distributed on hosts
+                // assumes placement is adjacent ranks to same node
             } else {
                 destrank = 0;
             }
             rt->sendInt(&meta_sz, destrank);
             rt->sendChar((char *)buffer, meta_sz, destrank);
         } else if (isInitiator()) {
-            char * buffer;
+            char *buffer;
             std::string remote_agent;
             int srcrank;
 
             if (IS_PAIRWISE_AND_SG()) {
                 srcrank = rt->getRank() + xferBenchConfig::num_initiator_dev;
-                //XXX: Fix up the rank, depends on processes distributed on hosts
-                //assumes placement is adjacent ranks to same node
+                // XXX: Fix up the rank, depends on processes distributed on hosts
+                // assumes placement is adjacent ranks to same node
             } else {
                 srcrank = 1;
             }
@@ -996,7 +998,7 @@ xferBenchNixlWorker::exchangeMetadata() {
 
             std::string remote_metadata(buffer, meta_sz);
             agent->loadRemoteMD(remote_metadata, remote_agent);
-            if("" == remote_agent) {
+            if ("" == remote_agent) {
                 std::cerr << "NIXL: loadMetadata failed" << std::endl;
             }
             free(buffer);
@@ -1188,20 +1190,23 @@ execTransfer(nixlAgent *agent,
             } else {
                 // Launch appropriate GDAKI kernel based on configuration
                 if (xferBenchConfig::gdaki_enable_partial_transfers &&
-                    (xferBenchConfig::gdaki_coordination_level == "thread" || xferBenchConfig::gdaki_coordination_level == "warp")) {
+                    (xferBenchConfig::gdaki_coordination_level == "thread" ||
+                     xferBenchConfig::gdaki_coordination_level == "warp")) {
                     // Use partial transfer kernel for thread/warp coordination
-                    rc = launchGdakiPartialKernel(gpu_req_handle, num_iter,
-                                                xferBenchConfig::gdaki_coordination_level,
-                                                xferBenchConfig::gdaki_threads_per_block,
-                                                xferBenchConfig::gdaki_blocks_per_grid,
-                                                0);
+                    rc = launchGdakiPartialKernel(gpu_req_handle,
+                                                  num_iter,
+                                                  xferBenchConfig::gdaki_coordination_level,
+                                                  xferBenchConfig::gdaki_threads_per_block,
+                                                  xferBenchConfig::gdaki_blocks_per_grid,
+                                                  0);
                 } else {
                     // Use full transfer kernel (block coordination only)
-                    rc = launchGdakiKernel(gpu_req_handle, num_iter,
-                                         xferBenchConfig::gdaki_coordination_level,
-                                         xferBenchConfig::gdaki_threads_per_block,
-                                         xferBenchConfig::gdaki_blocks_per_grid,
-                                         0);
+                    rc = launchGdakiKernel(gpu_req_handle,
+                                           num_iter,
+                                           xferBenchConfig::gdaki_coordination_level,
+                                           xferBenchConfig::gdaki_threads_per_block,
+                                           xferBenchConfig::gdaki_blocks_per_grid,
+                                           0);
                 }
 
                 if (rc != NIXL_SUCCESS) {
@@ -1212,7 +1217,8 @@ execTransfer(nixlAgent *agent,
                 // Wait for kernel completion
                 cudaError_t cuda_error = cudaDeviceSynchronize();
                 if (cuda_error != cudaSuccess) {
-                    std::cout << "GDAKI: CUDA kernel synchronization failed: " << cudaGetErrorString(cuda_error) << std::endl;
+                    std::cout << "GDAKI: CUDA kernel synchronization failed: "
+                              << cudaGetErrorString(cuda_error) << std::endl;
                     error = true;
                 }
 
@@ -1223,7 +1229,8 @@ execTransfer(nixlAgent *agent,
                 agent->releaseXferReqtoGPU(req);
             }
 #else
-            std::cout << "GDAKI: CUDA not available, falling back to host-side posting" << std::endl;
+            std::cout << "GDAKI: CUDA not available, falling back to host-side posting"
+                      << std::endl;
             error = true;
 #endif
         } else {
@@ -1283,8 +1290,14 @@ xferBenchNixlWorker::transfer(size_t block_size,
     }
 
     if (skip > 0) {
-        ret = execTransfer(
-            agent, local_iovs, remote_iovs, xfer_op, skip, xferBenchConfig::num_threads, stats, is_gdaki_enabled);
+        ret = execTransfer(agent,
+                           local_iovs,
+                           remote_iovs,
+                           xfer_op,
+                           skip,
+                           xferBenchConfig::num_threads,
+                           stats,
+                           is_gdaki_enabled);
         if (ret < 0) {
             return std::variant<xferBenchStats, int>(ret);
         }
@@ -1294,8 +1307,14 @@ xferBenchNixlWorker::transfer(size_t block_size,
 
     stats.clear();
 
-    ret = execTransfer(
-        agent, local_iovs, remote_iovs, xfer_op, num_iter, xferBenchConfig::num_threads, stats, is_gdaki_enabled);
+    ret = execTransfer(agent,
+                       local_iovs,
+                       remote_iovs,
+                       xfer_op,
+                       num_iter,
+                       xferBenchConfig::num_threads,
+                       stats,
+                       is_gdaki_enabled);
     if (ret < 0) {
         return std::variant<xferBenchStats, int>(ret);
     }
@@ -1323,7 +1342,7 @@ xferBenchNixlWorker::poll(size_t block_size) {
         // Monitor signal buffer if we have one
         if (!signal_buffers.empty()) {
             const auto &signal_buffer = signal_buffers[0]; // Use first signal buffer
-            void* signal_addr = reinterpret_cast<void*>(signal_buffer.addr);
+            void *signal_addr = reinterpret_cast<void *>(signal_buffer.addr);
             // Wait for warmup iterations to complete
             uint64_t count = 0;
             while (count < skip) {
@@ -1344,7 +1363,8 @@ xferBenchNixlWorker::poll(size_t block_size) {
             }
         } else {
             // No signal buffer available, just synchronize at the same points as initiator
-            std::cout << "GDAKI: No signal buffer available, using time-based synchronization" << std::endl;
+            std::cout << "GDAKI: No signal buffer available, using time-based synchronization"
+                      << std::endl;
         }
         // Final synchronize (match initiator)
         synchronize();
