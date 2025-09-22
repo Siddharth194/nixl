@@ -184,4 +184,10 @@ launchGdakiPartialKernel(nixlGpuXferReqH *req_handle,
     return NIXL_SUCCESS;
 }
 
+uint64_t
+readNixlGpuSignal(void *signal_addr) {
+    return nixlGpuReadSignal(signal_addr);
+
+}
+
 } // extern "C"

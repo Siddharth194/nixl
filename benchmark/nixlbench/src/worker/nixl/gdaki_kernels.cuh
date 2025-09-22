@@ -35,6 +35,9 @@ launchGdakiPartialKernel(nixlGpuXferReqH *req_handle,
                          const uint64_t signal_inc = 0,
                          const uint64_t remote_addr = 0);
 
+uint64_t
+readNixlGpuSignal(void *signal_addr);
+
 #ifdef __cplusplus
 }
 #endif
