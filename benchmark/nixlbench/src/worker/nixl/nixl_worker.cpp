@@ -1364,7 +1364,7 @@ xferBenchNixlWorker::poll(size_t block_size) {
 
             // Wait for all iterations to complete
             while (count < total_iter) {
-                count = readNixlGpuSignal(signal_addr);       
+                count = readNixlGpuSignal(signal_addr);
                 std::cout << "Got count: " << count << " while polling" << std::endl;
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }
