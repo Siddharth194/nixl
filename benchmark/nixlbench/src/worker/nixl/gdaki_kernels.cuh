@@ -20,7 +20,9 @@ launchGdakiKernel(nixlGpuXferReqH *req_handle,
                   const std::string &coordination_level = "block",
                   int threads_per_block = 256,
                   int blocks_per_grid = 1,
-                  cudaStream_t stream = 0);
+                  cudaStream_t stream = 0,
+                  const uint64_t signal_inc = 0,
+                  const uint64_t remote_addr = 0);
 
 // Launch GDAKI kernel for partial transfers (supports thread/warp/block coordination)
 nixl_status_t
@@ -29,7 +31,9 @@ launchGdakiPartialKernel(nixlGpuXferReqH *req_handle,
                          const std::string &coordination_level = "block",
                          int threads_per_block = 256,
                          int blocks_per_grid = 1,
-                         cudaStream_t stream = 0);
+                         cudaStream_t stream = 0,
+                         const uint64_t signal_inc = 0,
+                         const uint64_t remote_addr = 0);
 
 #ifdef __cplusplus
 }

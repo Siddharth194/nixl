@@ -45,7 +45,7 @@
 
 #define CHECK_NIXL_ERROR(result, message)                                                       \
     do {                                                                                        \
-        if (0 != result) {                                                                      \
+        if (NIXL_SUCCESS != result) {                                                           \
             std::cerr << "NIXL: " << message << " (Error code: " << result << ")" << std::endl; \
             exit(EXIT_FAILURE);                                                                 \
         }                                                                                       \
@@ -216,7 +216,7 @@ xferBenchNixlWorker::xferBenchNixlWorker(int *argc, char ***argv, std::vector<st
         exit(EXIT_FAILURE);
     }
 
-    agent->createBackend(backend_name, backend_params, backend_engine);
+    CHECK_NIXL_ERROR(agent->createBackend(backend_name, backend_params, backend_engine), "createBackend failed!");
 }
 
 xferBenchNixlWorker::~xferBenchNixlWorker() {
@@ -576,11 +576,10 @@ xferBenchNixlWorker::initSignalBuffer(int mem_dev_id) {
     if (!is_gdaki_enabled) {
         return std::nullopt;
     }
-    size_t signal_buffer_size = sizeof(uint64_t);
     switch (seg_type) {
 #if HAVE_CUDA
     case VRAM_SEG:
-        return initBasicDescVram(signal_buffer_size, mem_dev_id);
+        return initBasicDescVram(sizeof(uint64_t), mem_dev_id);
 #endif
     default:
         std::cerr << "GDAKI: Unsupported signal buffer memory type: " << seg_type << std::endl;
@@ -875,11 +874,14 @@ xferBenchNixlWorker::allocateMemory(int num_threads) {
         if (is_gdaki_enabled) {
             std::optional<xferBenchIOV> signal_desc = initSignalBuffer(0);
             if (signal_desc) {
+                nixl_reg_dlist_t sig_list(VRAM_SEG);
+                iovListToNixlRegDlist(signal_desc.value(), sig_list);
+                nixl_opt_args_t extra_params = {.backends = {backend_engine}};
+
+                CHECK_NIXL_ERROR(agent->prepGpuSignal(sig_list, &extra_params), "prepGpuSignal failed");
+
                 iov_list.push_back(signal_desc.value());
                 signal_buffers.push_back(signal_desc.value());
-            } else {
-                std::cerr << "GDAKI: Failed to allocate signal buffer for list " << list_idx
-                          << std::endl;
             }
         }
 
@@ -920,8 +922,8 @@ xferBenchNixlWorker::deallocateMemory(std::vector<std::vector<xferBenchIOV>> &io
     }
 
     // Clean up signal buffers for GDAKI
-    // Note: Signal buffers are already cleaned up in the main loop above since they're part of
-    // iov_lists We just need to clear the signal_buffers vector to avoid confusion
+    // Note: Signal buffers are already cleaned up in the main loop above since they're part of iov_lists
+    // We just need to clear the signal_buffers vector to avoid confusion
     if (is_gdaki_enabled) {
         signal_buffers.clear();
     }
@@ -1145,6 +1147,8 @@ execTransfer(nixlAgent *agent,
         nixlXferReqH *req;
         nixl_status_t rc;
         std::string target;
+        uint64_t sig_inc = 1;
+        uint64_t remote_addr;
 
         if (xferBenchConfig::isStorageBackend()) {
             target = "initiator";
@@ -1154,12 +1158,11 @@ execTransfer(nixlAgent *agent,
             target = "target";
         }
 
-        // Set signal parameters and remove signal buffer from transfer lists for GDAKI
+		// Set signal parameters and remove signal buffer from transfer lists for GDAKI
         if (is_gdaki_enabled && !local_iov.empty() && !remote_iov.empty()) {
             // In GDAKI protocol: initiator signals target's buffer, target monitors its own buffer
             const auto &signal_iov = remote_iov.back();
-            params.signal_addr = signal_iov.addr;
-            params.signal_dev_id = signal_iov.devId;
+            remote_addr = signal_iov.addr;
 
             // Remove signal buffer from transfer descriptor lists
             if (local_transfer_iov.size() > 0) {
@@ -1179,59 +1182,54 @@ execTransfer(nixlAgent *agent,
         if (is_gdaki_enabled) {
             // Use device-side posting for GDAKI transfers
 #if HAVE_CUDA
-            nixlGpuXferReqH *gpu_req_handle = agent->exportXferReqtoGPU(req);
+            nixlGpuXferReqH gpu_req_handle;
+
+            CHECK_NIXL_ERROR(agent->createGpuXferReq(req, gpu_req_handle), "createGpuXferReq failed");
 
             const nixlTime::us_t prepare_duration = timer.lap();
             thread_stats.prepare_duration.add(prepare_duration);
 
-            if (!gpu_req_handle) {
-                std::cout << "GDAKI: Failed to export transfer request to GPU" << std::endl;
-                error = true;
+            // Launch appropriate GDAKI kernel based on configuration
+            if (xferBenchConfig::gdaki_enable_partial_transfers &&
+                (xferBenchConfig::gdaki_coordination_level == "thread" ||
+                 xferBenchConfig::gdaki_coordination_level == "warp")) {
+                // Use partial transfer kernel for thread/warp coordination
+                CHECK_NIXL_ERROR(launchGdakiPartialKernel(gpu_req_handle,
+                                              num_iter,
+                                              xferBenchConfig::gdaki_coordination_level,
+                                              xferBenchConfig::gdaki_threads_per_block,
+                                              xferBenchConfig::gdaki_blocks_per_grid,
+                                              0, sig_inc, remote_addr), "launchGdakiPartialKernel failed");
             } else {
-                // Launch appropriate GDAKI kernel based on configuration
-                if (xferBenchConfig::gdaki_enable_partial_transfers &&
-                    (xferBenchConfig::gdaki_coordination_level == "thread" ||
-                     xferBenchConfig::gdaki_coordination_level == "warp")) {
-                    // Use partial transfer kernel for thread/warp coordination
-                    rc = launchGdakiPartialKernel(gpu_req_handle,
-                                                  num_iter,
-                                                  xferBenchConfig::gdaki_coordination_level,
-                                                  xferBenchConfig::gdaki_threads_per_block,
-                                                  xferBenchConfig::gdaki_blocks_per_grid,
-                                                  0);
-                } else {
-                    // Use full transfer kernel (block coordination only)
-                    rc = launchGdakiKernel(gpu_req_handle,
-                                           num_iter,
-                                           xferBenchConfig::gdaki_coordination_level,
-                                           xferBenchConfig::gdaki_threads_per_block,
-                                           xferBenchConfig::gdaki_blocks_per_grid,
-                                           0);
-                }
+                // Use full transfer kernel (block coordination only)
+                CHECK_NIXL_ERROR(launchGdakiKernel(gpu_req_handle,
+                                       num_iter,
+                                       xferBenchConfig::gdaki_coordination_level,
+                                       xferBenchConfig::gdaki_threads_per_block,
+                                       xferBenchConfig::gdaki_blocks_per_grid,
+                                       0, sig_inc, remote_addr), "launchGdakiKernel failed");
+            }
 
-                if (rc != NIXL_SUCCESS) {
-                    std::cout << "GDAKI: Kernel launch failed: " << rc << std::endl;
-                    error = true;
-                }
+            const nixlTime::us_t post_duration = timer.lap();
+            thread_stats.post_duration.add(post_duration);
 
-                // Wait for kernel completion
-                cudaError_t cuda_error = cudaDeviceSynchronize();
-                if (cuda_error != cudaSuccess) {
-                    std::cout << "GDAKI: CUDA kernel synchronization failed: "
-                              << cudaGetErrorString(cuda_error) << std::endl;
-                    error = true;
-                }
-
+            // Wait for kernel completion
+            cudaError_t cuda_error = cudaDeviceSynchronize();
+            if (cuda_error != cudaSuccess) {
+                std::cout << "GDAKI: CUDA kernel synchronization failed: "
+                          << cudaGetErrorString(cuda_error) << std::endl;
+                ret = -1;
+            } else {
                 const nixlTime::us_t transfer_duration = timer.lap();
                 thread_stats.transfer_duration.add(transfer_duration);
-
-                // Release GPU request
-                agent->releaseXferReqtoGPU(req);
             }
+
+            // Release GPU request
+            agent->releaseXferReqtoGPU(gpu_req_handle);
 #else
             std::cout << "GDAKI: CUDA not available, falling back to host-side posting"
                       << std::endl;
-            error = true;
+            ret = -1;
 #endif
         } else {
             const nixlTime::us_t prepare_duration = timer.lap();
@@ -1258,11 +1256,7 @@ execTransfer(nixlAgent *agent,
             }
         }
 
-        rc = agent->releaseXferReq(req);
-        if (NIXL_SUCCESS != rc) {
-            std::cout << "NIXL releaseXferReq failed" << std::endl;
-            ret = -1;
-        }
+        CHECK_NIXL_ERROR(agent->releaseXferReq(req), "releaseXferReq failed");
 
 #pragma omp critical
         { stats.add(thread_stats); }
@@ -1325,7 +1319,7 @@ xferBenchNixlWorker::transfer(size_t block_size,
 
 void
 xferBenchNixlWorker::poll(size_t block_size) {
-    int skip = 0, num_iter = 0, total_iter = 0;
+    unsigned int skip = 0, num_iter = 0, total_iter = 0;
 
     skip = xferBenchConfig::warmup_iter;
     num_iter = xferBenchConfig::num_iter;
@@ -1341,13 +1335,13 @@ xferBenchNixlWorker::poll(size_t block_size) {
         // GDAKI mode: Target monitors signal buffer instead of waiting for notifications
         // Monitor signal buffer if we have one
         if (!signal_buffers.empty()) {
-            const auto &signal_buffer = signal_buffers[0]; // Use first signal buffer
-            void *signal_addr = reinterpret_cast<void *>(signal_buffer.addr);
+            void *signal_addr = reinterpret_cast<void *>(signal_buffers[0].addr);
             // Wait for warmup iterations to complete
             uint64_t count = 0;
             while (count < skip) {
 #if HAVE_CUDA
-                cudaMemcpy(&count, signal_addr, sizeof(uint64_t), cudaMemcpyDeviceToHost);
+                count = nixlGpuReadSignal(signal_addr);
+                std::cout << "Got count in warmup: " << count << " while polling" << std::endl;
 #endif
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }
@@ -1357,7 +1351,8 @@ xferBenchNixlWorker::poll(size_t block_size) {
             // Wait for all iterations to complete
             while (count < total_iter) {
 #if HAVE_CUDA
-                cudaMemcpy(&count, signal_addr, sizeof(uint64_t), cudaMemcpyDeviceToHost);
+                count = nixlGpuReadSignal(signal_addr);
+                std::cout << "Got count: " << count << " while polling" << std::endl;
 #endif
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }
