@@ -5,7 +5,7 @@
 
 #include <cuda_runtime.h>
 #include <nixl_types.h>
-#include <utils/ucx/nixl_gdaki_device.cuh>
+#include <gpu/ucx/nixl_device.cuh>
 #include "gdaki_kernels.cuh"
 
 // Helper function to get request index based on coordination level (from gtest)

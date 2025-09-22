@@ -22,14 +22,37 @@ nixl_worker_cuda_sources = [
   'gdaki_kernels.cu',
 ]
 
+ucx_gpu_device_api_available = false
 nixl_worker_deps = [openmp_dep, nixl_lib, nixl_build, nixl_serdes]
 if cuda_available
-  nixl_worker_deps += [cuda_dep]
+    nixl_worker_deps += [cuda_dep]
+    cuda = meson.get_compiler('cuda')
+    have_gpu_side = cuda.compiles('''
+            #include <ucp/api/device/ucp_device_impl.h>
+            int main() { return 0; }
+        ''', dependencies : ucx_dep, args: nvcc_flags)
+
+    have_host_side = cpp.compiles('''
+            #include <ucp/api/device/ucp_host.h>
+            int main() { return 0; }
+        ''', dependencies: ucx_dep)
+
+    if have_gpu_side and have_host_side
+        ucx_gpu_device_api_available = true
+        add_project_arguments('-DHAVE_UCX_GPU_DEVICE_API', language: ['cpp', 'cuda'])
+    endif
+
+    summary({
+    'UCX GPU Device API' : ucx_gpu_device_api_available,
+    'GPU-side compile'   : have_gpu_side,
+    'Host-side compile'  : have_host_side,
+    'nvcc available'     : nvcc_prog.found(),
+  }, section: 'UCX GPU Device API', bool_yn: true)
 endif
 
 # Handle CUDA compilation if available
 cuda_objects = []
-if cuda_available
+if cuda_available and ucx_gpu_device_api_available
   # Find nvcc compiler
   nvcc = find_program('nvcc', required: false)
   if nvcc.found()

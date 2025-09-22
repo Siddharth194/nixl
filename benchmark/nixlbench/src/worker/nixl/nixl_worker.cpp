@@ -873,10 +873,12 @@ xferBenchNixlWorker::allocateMemory(int num_threads) {
 
         // Add signal buffer for GDAKI if enabled
         if (is_gdaki_enabled) {
+            std::vector<xferBenchIOV> signal_vec;
             std::optional<xferBenchIOV> signal_desc = initSignalBuffer(0);
+            signal_vec.push_back(signal_desc.value());
             if (signal_desc) {
                 nixl_reg_dlist_t sig_list(VRAM_SEG);
-                iovListToNixlRegDlist(signal_desc.value(), sig_list);
+                iovListToNixlRegDlist(signal_vec, sig_list);
                 nixl_opt_args_t extra_params = {.backends = {backend_engine}};
 
                 CHECK_NIXL_ERROR(agent->prepGpuSignal(sig_list, &extra_params),
@@ -1149,7 +1151,6 @@ execTransfer(nixlAgent *agent,
         nixlXferReqH *req;
         nixl_status_t rc;
         std::string target;
-        uint64_t sig_inc = 1;
         uint64_t remote_addr;
 
         if (xferBenchConfig::isStorageBackend()) {
@@ -1203,7 +1204,7 @@ execTransfer(nixlAgent *agent,
                                                           xferBenchConfig::gdaki_threads_per_block,
                                                           xferBenchConfig::gdaki_blocks_per_grid,
                                                           0,
-                                                          sig_inc,
+                                                          1,
                                                           remote_addr),
                                  "launchGdakiPartialKernel failed");
             } else {
@@ -1214,7 +1215,7 @@ execTransfer(nixlAgent *agent,
                                                    xferBenchConfig::gdaki_threads_per_block,
                                                    xferBenchConfig::gdaki_blocks_per_grid,
                                                    0,
-                                                   sig_inc,
+                                                   1,
                                                    remote_addr),
                                  "launchGdakiKernel failed");
             }
@@ -1382,13 +1383,13 @@ xferBenchNixlWorker::poll(size_t block_size) {
     /* Ensure warmup is done*/
     do {
         status = agent->getNotifs(notifs);
-    } while (status == NIXL_SUCCESS && skip != int(notifs["initiator"].size()));
+    } while (status == NIXL_SUCCESS && skip != notifs["initiator"].size());
     synchronize();
 
     /* Polling for actual iterations*/
     do {
         status = agent->getNotifs(notifs);
-    } while (status == NIXL_SUCCESS && total_iter != int(notifs["initiator"].size()));
+    } while (status == NIXL_SUCCESS && total_iter != notifs["initiator"].size());
     synchronize();
 }
 
