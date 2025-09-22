@@ -134,17 +134,15 @@ curl -fsSL "https://efa-installer.amazonaws.com/aws-efa-installer-${EFA_INSTALLE
 )
 
 # Install DOCA & GPUNETIO packages after EFA to avoid MPI conflicts
-UBUNTU_VER=$(grep '^VERSION_ID=' /etc/os-release | cut -d'"' -f2)
-DOCA_REPO="https://linux.mellanox.com/public/repo/doca/3.1.0/ubuntu${UBUNTU_VER}/${ARCH}"
-$SUDO curl -fsSL "${DOCA_REPO}"/GPG-KEY-Mellanox.pub | $SUDO gpg --dearmor -o /usr/share/keyrings/doca.gpg
-echo "deb [signed-by=/usr/share/keyrings/doca.gpg] ${DOCA_REPO}/ ./" | $SUDO tee /etc/apt/sources.list.d/doca.list >/dev/null
-$SUDO apt-get -qq update
-$SUDO apt-get install -y --no-install-recommends \
-    doca-sdk-common \
-    doca-sdk-gpunetio \
-    libdoca-sdk-common-dev \
-    libdoca-sdk-gpunetio-dev \
-    libdoca-sdk-verbs-dev
+( \
+  cd /tmp && \
+  ARCH_SUFFIX=$(if [ "${ARCH}" = "aarch64" ]; then echo "arm64"; else echo "amd64"; fi) && \
+  MELLANOX_OS="$(. /etc/lsb-release; echo ${DISTRIB_ID}${DISTRIB_RELEASE} | tr A-Z a-z | tr -d .)" && \
+  wget --tries=3 --waitretry=5 https://www.mellanox.com/downloads/DOCA/DOCA_v3.1.0/host/doca-host_3.1.0-091000-25.07-${MELLANOX_OS}_${ARCH_SUFFIX}.deb -O doca-host.deb && \
+  $SUDO dpkg -i doca-host.deb && \
+  $SUDO apt-get update && \
+  $SUDO apt-get install -y --no-install-recommends doca-sdk-gpunetio libdoca-sdk-gpunetio-dev libdoca-sdk-verbs-dev \
+)
 
 ( \
   cd /tmp && \
