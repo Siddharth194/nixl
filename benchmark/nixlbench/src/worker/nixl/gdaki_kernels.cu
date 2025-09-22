@@ -26,7 +26,9 @@ getRequestIndex() {
 
 // GDAKI kernel for full transfers (block coordination only)
 __global__ void
-gdakiFullTransferKernel(nixlGpuXferReqH *req_handle, int num_iterations, const uint64_t signal_inc,
+gdakiFullTransferKernel(nixlGpuXferReqH *req_handle,
+                        int num_iterations,
+                        const uint64_t signal_inc,
                         const uint64_t remote_addr) {
     __shared__ nixlGpuXferStatusH xfer_status;
     nixlGpuSignal signal = {signal_inc, remote_addr};
@@ -34,8 +36,8 @@ gdakiFullTransferKernel(nixlGpuXferReqH *req_handle, int num_iterations, const u
     // Execute transfers for the specified number of iterations
     for (int i = 0; i < num_iterations; i++) {
         // Post the GPU transfer request with signal increment of 1
-        nixl_status_t status =
-            nixlGpuPostSignalXferReq<NIXL_GPU_XFER_COORDINATION_BLOCK>(req_handle, 0, signal, true, &xfer_status);
+        nixl_status_t status = nixlGpuPostSignalXferReq<NIXL_GPU_XFER_COORDINATION_BLOCK>(
+            req_handle, 0, signal, true, &xfer_status);
         if (status != NIXL_SUCCESS && status != NIXL_IN_PROG) {
             return; // Early exit on error
         }
@@ -54,7 +56,9 @@ gdakiFullTransferKernel(nixlGpuXferReqH *req_handle, int num_iterations, const u
 // GDAKI kernel for partial transfers (supports thread/warp/block coordination)
 template<nixl_gpu_xfer_coordination_level_t level>
 __global__ void
-gdakiPartialTransferKernel(nixlGpuXferReqH *req_handle, int num_iterations, const uint64_t signal_inc,
+gdakiPartialTransferKernel(nixlGpuXferReqH *req_handle,
+                           int num_iterations,
+                           const uint64_t signal_inc,
                            const uint64_t remote_addr) {
     constexpr size_t MAX_THREADS = 1024;
     __shared__ nixlGpuXferStatusH xfer_status[MAX_THREADS];

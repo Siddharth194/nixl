@@ -216,7 +216,8 @@ xferBenchNixlWorker::xferBenchNixlWorker(int *argc, char ***argv, std::vector<st
         exit(EXIT_FAILURE);
     }
 
-    CHECK_NIXL_ERROR(agent->createBackend(backend_name, backend_params, backend_engine), "createBackend failed!");
+    CHECK_NIXL_ERROR(agent->createBackend(backend_name, backend_params, backend_engine),
+                     "createBackend failed!");
 }
 
 xferBenchNixlWorker::~xferBenchNixlWorker() {
@@ -878,7 +879,8 @@ xferBenchNixlWorker::allocateMemory(int num_threads) {
                 iovListToNixlRegDlist(signal_desc.value(), sig_list);
                 nixl_opt_args_t extra_params = {.backends = {backend_engine}};
 
-                CHECK_NIXL_ERROR(agent->prepGpuSignal(sig_list, &extra_params), "prepGpuSignal failed");
+                CHECK_NIXL_ERROR(agent->prepGpuSignal(sig_list, &extra_params),
+                                 "prepGpuSignal failed");
 
                 iov_list.push_back(signal_desc.value());
                 signal_buffers.push_back(signal_desc.value());
@@ -922,8 +924,8 @@ xferBenchNixlWorker::deallocateMemory(std::vector<std::vector<xferBenchIOV>> &io
     }
 
     // Clean up signal buffers for GDAKI
-    // Note: Signal buffers are already cleaned up in the main loop above since they're part of iov_lists
-    // We just need to clear the signal_buffers vector to avoid confusion
+    // Note: Signal buffers are already cleaned up in the main loop above since they're part of
+    // iov_lists We just need to clear the signal_buffers vector to avoid confusion
     if (is_gdaki_enabled) {
         signal_buffers.clear();
     }
@@ -1158,7 +1160,7 @@ execTransfer(nixlAgent *agent,
             target = "target";
         }
 
-		// Set signal parameters and remove signal buffer from transfer lists for GDAKI
+        // Set signal parameters and remove signal buffer from transfer lists for GDAKI
         if (is_gdaki_enabled && !local_iov.empty() && !remote_iov.empty()) {
             // In GDAKI protocol: initiator signals target's buffer, target monitors its own buffer
             const auto &signal_iov = remote_iov.back();
@@ -1184,7 +1186,8 @@ execTransfer(nixlAgent *agent,
 #if HAVE_CUDA
             nixlGpuXferReqH gpu_req_handle;
 
-            CHECK_NIXL_ERROR(agent->createGpuXferReq(req, gpu_req_handle), "createGpuXferReq failed");
+            CHECK_NIXL_ERROR(agent->createGpuXferReq(req, gpu_req_handle),
+                             "createGpuXferReq failed");
 
             const nixlTime::us_t prepare_duration = timer.lap();
             thread_stats.prepare_duration.add(prepare_duration);
@@ -1195,19 +1198,25 @@ execTransfer(nixlAgent *agent,
                  xferBenchConfig::gdaki_coordination_level == "warp")) {
                 // Use partial transfer kernel for thread/warp coordination
                 CHECK_NIXL_ERROR(launchGdakiPartialKernel(gpu_req_handle,
-                                              num_iter,
-                                              xferBenchConfig::gdaki_coordination_level,
-                                              xferBenchConfig::gdaki_threads_per_block,
-                                              xferBenchConfig::gdaki_blocks_per_grid,
-                                              0, sig_inc, remote_addr), "launchGdakiPartialKernel failed");
+                                                          num_iter,
+                                                          xferBenchConfig::gdaki_coordination_level,
+                                                          xferBenchConfig::gdaki_threads_per_block,
+                                                          xferBenchConfig::gdaki_blocks_per_grid,
+                                                          0,
+                                                          sig_inc,
+                                                          remote_addr),
+                                 "launchGdakiPartialKernel failed");
             } else {
                 // Use full transfer kernel (block coordination only)
                 CHECK_NIXL_ERROR(launchGdakiKernel(gpu_req_handle,
-                                       num_iter,
-                                       xferBenchConfig::gdaki_coordination_level,
-                                       xferBenchConfig::gdaki_threads_per_block,
-                                       xferBenchConfig::gdaki_blocks_per_grid,
-                                       0, sig_inc, remote_addr), "launchGdakiKernel failed");
+                                                   num_iter,
+                                                   xferBenchConfig::gdaki_coordination_level,
+                                                   xferBenchConfig::gdaki_threads_per_block,
+                                                   xferBenchConfig::gdaki_blocks_per_grid,
+                                                   0,
+                                                   sig_inc,
+                                                   remote_addr),
+                                 "launchGdakiKernel failed");
             }
 
             const nixlTime::us_t post_duration = timer.lap();
