@@ -92,6 +92,13 @@ then
     run_nixlbench_two_workers --backend UCX --op_type WRITE --initiator_seg_type VRAM --target_seg_type VRAM
     run_nixlbench_two_workers --backend UCX --op_type WRITE --initiator_seg_type DRAM --target_seg_type VRAM
     run_nixlbench_two_workers --backend UCX --op_type WRITE --initiator_seg_type VRAM --target_seg_type DRAM
+
+    run_nixlbench_two_workers --backend GPUNETIO --op_type READ --initiator_seg_type VRAM --target_seg_type VRAM
+    run_nixlbench_two_workers --backend GPUNETIO --op_type READ --initiator_seg_type DRAM --target_seg_type VRAM
+    run_nixlbench_two_workers --backend GPUNETIO --op_type READ --initiator_seg_type VRAM --target_seg_type DRAM
+    run_nixlbench_two_workers --backend GPUNETIO --op_type WRITE --initiator_seg_type VRAM --target_seg_type VRAM
+    run_nixlbench_two_workers --backend GPUNETIO --op_type WRITE --initiator_seg_type DRAM --target_seg_type VRAM
+    run_nixlbench_two_workers --backend GPUNETIO --op_type WRITE --initiator_seg_type VRAM --target_seg_type DRAM
 else
     echo "Worker without GPU, skipping GPU tests"
 fi
