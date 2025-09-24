@@ -17,7 +17,7 @@ extern "C" {
 nixl_status_t
 launchGdakiKernel(nixlGpuXferReqH *req_handle,
                   int num_iterations,
-		  const char *level,
+                  const char *level,
                   int threads_per_block = 256,
                   int blocks_per_grid = 1,
                   cudaStream_t stream = 0,
@@ -28,7 +28,7 @@ launchGdakiKernel(nixlGpuXferReqH *req_handle,
 nixl_status_t
 launchGdakiPartialKernel(nixlGpuXferReqH *req_handle,
                          int num_iterations,
-			 const char *level,
+                         const char *level,
                          int threads_per_block = 256,
                          int blocks_per_grid = 1,
                          cudaStream_t stream = 0,

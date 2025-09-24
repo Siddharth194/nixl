@@ -226,18 +226,21 @@ xferBenchConfig::loadFromFlags() {
             gdaki_enable_partial_transfers = FLAGS_gdaki_enable_partial_transfers;
 
             // Validate GDAKI configuration
-	    if (xferBenchConfigGpuLevels.find(FLAGS_gdaki_gpu_level) == xferBenchConfigGpuLevels.end()) {
-		std::cerr << "Invalid GDAKI gpu level: " << FLAGS_gdaki_gpu_level << ". Must be: "
-			  << xferBenchConfigGpuLevelThread << ", "
-			  << xferBenchConfigGpuLevelWarp << ", or "
-			  << xferBenchConfigGpuLevelBlock << std::endl;
-		return -1;
-	    }
+            if (xferBenchConfigGpuLevels.find(FLAGS_gdaki_gpu_level) ==
+                xferBenchConfigGpuLevels.end()) {
+                std::cerr << "Invalid GDAKI gpu level: " << FLAGS_gdaki_gpu_level
+                          << ". Must be: " << xferBenchConfigGpuLevelThread << ", "
+                          << xferBenchConfigGpuLevelWarp << ", or " << xferBenchConfigGpuLevelBlock
+                          << std::endl;
+                return -1;
+            }
 
-	    gdaki_gpu_level = FLAGS_gdaki_gpu_level;
+            gdaki_gpu_level = FLAGS_gdaki_gpu_level;
 
             // Inform about gpu coordination level support
-            if ((xferBenchConfigGpuLevels.find(gdaki_gpu_level) != xferBenchConfigGpuLevels.end()) && (xferBenchConfigGpuLevelBlock != std::string_view(gdaki_gpu_level))) {
+            if ((xferBenchConfigGpuLevels.find(gdaki_gpu_level) !=
+                 xferBenchConfigGpuLevels.end()) &&
+                (xferBenchConfigGpuLevelBlock != std::string_view(gdaki_gpu_level))) {
                 if (gdaki_enable_partial_transfers) {
                     std::cout << "INFO: GDAKI using '" << gdaki_gpu_level
                               << "' gpu coordination with partial transfers enabled." << std::endl;
@@ -484,8 +487,7 @@ xferBenchConfig::printConfig() {
         if (enable_gdaki) {
             printOption("GDAKI GPU device list (--gdaki_gpu_device_list=dev1,dev2,...)",
                         gdaki_gpu_device_list);
-            printOption("GDAKI GPU level (--gdaki_gpu_level=[thread,warp,block])",
-                        gdaki_gpu_level);
+            printOption("GDAKI GPU level (--gdaki_gpu_level=[thread,warp,block])", gdaki_gpu_level);
             printOption("GDAKI threads per block (--gdaki_threads_per_block=N)",
                         std::to_string(gdaki_threads_per_block));
             printOption("GDAKI blocks per grid (--gdaki_blocks_per_grid=N)",

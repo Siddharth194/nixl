@@ -125,12 +125,11 @@
 constexpr std::string_view xferBenchConfigGpuLevelThread{"thread"};
 constexpr std::string_view xferBenchConfigGpuLevelWarp{"warp"};
 constexpr std::string_view xferBenchConfigGpuLevelBlock{"block"};
+
 namespace {
-    const std::unordered_set<std::string_view> xferBenchConfigGpuLevels{
-        xferBenchConfigGpuLevelThread,
-	xferBenchConfigGpuLevelWarp,
-	xferBenchConfigGpuLevelBlock
-    };
+const std::unordered_set<std::string_view> xferBenchConfigGpuLevels{xferBenchConfigGpuLevelThread,
+                                                                    xferBenchConfigGpuLevelWarp,
+                                                                    xferBenchConfigGpuLevelBlock};
 }
 
 class xferBenchConfig {
