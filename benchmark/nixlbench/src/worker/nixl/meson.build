@@ -22,29 +22,15 @@ nixl_worker_cuda_sources = [
     'gdaki_kernels.cu',
 ]
 
-ucx_gpu_device_api_available = false
 nixl_worker_deps = [openmp_dep, nixl_lib, nixl_build, nixl_serdes]
 if cuda_available
-    add_languages('CUDA')
     nixl_worker_deps += [cuda_dep]
-    cuda = meson.get_compiler('cuda')
-    have_nixl_gdaki = cuda.compiles('''
-            #include <gpu/ucx/nixl_device.cuh>
-            int main() { return 0; }
-        ''', dependencies : nixl_worker_deps)
-
-    if have_nixl_gdaki
-        ucx_gpu_device_api_available = true
-        add_project_arguments('-DHAVE_NIXL_DEV_API', language: ['cpp', 'cuda'])
-        message('XXXX: Adding NIXL_DEV_API FLAG: XXXX')
-    endif
-
-    message('Using NIXL Device API: ', ucx_gpu_device_api_available)
 endif
 
 # Handle CUDA compilation if available
 cuda_objects = []
-if cuda_available and ucx_gpu_device_api_available
+if cuda_available and have_nixl_gdaki
+    message('BUIDLING nixl_cuda_obj !!!!!')
     # Find nvcc compiler
     nvcc = find_program('nvcc', required: false)
     if nvcc.found()
@@ -83,11 +69,6 @@ if cuda_available and ucx_gpu_device_api_available
       warning('NVCC not found - CUDA kernels will not be available')
     endif
 endif
-
-#cppargs = []
-#if ucx_gpu_device_api_available
-#    cppargs += '-DHAVE_NIXL_DEV_API'
-#endif
 
 nixl_worker_lib = static_library('nixl_worker',
     nixl_worker_sources,

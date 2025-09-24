@@ -1197,15 +1197,16 @@ execTransfer(nixlAgent *agent,
 
             const nixlTime::us_t prepare_duration = timer.lap();
             thread_stats.prepare_duration.add(prepare_duration);
+	    std::string_view gpu_level = *(xferBenchConfigGpuLevels.find(xferBenchConfig::gdaki_gpu_level));
 
             // Launch appropriate GDAKI kernel based on configuration
             if (xferBenchConfig::gdaki_enable_partial_transfers &&
-                (xferBenchConfig::gdaki_coordination_level == "thread" ||
-                 xferBenchConfig::gdaki_coordination_level == "warp")) {
+                (gpu_level == xferBenchConfigGpuLevelThread ||
+                 gpu_level == xferBenchConfigGpuLevelWarp)) {
                 // Use partial transfer kernel for thread/warp coordination
                 CHECK_NIXL_ERROR(launchGdakiPartialKernel(&gpu_req_handle,
                                                           num_iter,
-                                                          xferBenchConfig::gdaki_coordination_level,
+                                                          gpu_level.data(),
                                                           xferBenchConfig::gdaki_threads_per_block,
                                                           xferBenchConfig::gdaki_blocks_per_grid,
                                                           0,
@@ -1216,7 +1217,7 @@ execTransfer(nixlAgent *agent,
                 // Use full transfer kernel (block coordination only)
                 CHECK_NIXL_ERROR(launchGdakiKernel(&gpu_req_handle,
                                                    num_iter,
-                                                   xferBenchConfig::gdaki_coordination_level,
+                                                   gpu_level.data(),
                                                    xferBenchConfig::gdaki_threads_per_block,
                                                    xferBenchConfig::gdaki_blocks_per_grid,
                                                    0,
@@ -1348,6 +1349,8 @@ xferBenchNixlWorker::poll(size_t block_size) {
 
     if (is_gdaki_enabled) {
 #if HAVE_CUDA && HAVE_NIXL_DEV_API
+	std::string_view gpu_level = *(xferBenchConfigGpuLevels.find(xferBenchConfig::gdaki_gpu_level));
+
         // GDAKI mode: Target monitors signal buffer instead of waiting for notifications
         // Monitor signal buffer if we have one
         if (!signal_buffers.empty()) {
@@ -1355,7 +1358,7 @@ xferBenchNixlWorker::poll(size_t block_size) {
             // Wait for warmup iterations to complete
             uint64_t count = 0;
             while (count < skip) {
-                count = readNixlGpuSignal(signal_addr);
+                count = readNixlGpuSignal(signal_addr, gpu_level.data());
                 std::cout << "Got count in warmup: " << count << " while polling" << std::endl;
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }
@@ -1364,7 +1367,7 @@ xferBenchNixlWorker::poll(size_t block_size) {
 
             // Wait for all iterations to complete
             while (count < total_iter) {
-                count = readNixlGpuSignal(signal_addr);
+                count = readNixlGpuSignal(signal_addr, gpu_level.data());
                 std::cout << "Got count: " << count << " while polling" << std::endl;
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }

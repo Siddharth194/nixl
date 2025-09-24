@@ -17,7 +17,7 @@ extern "C" {
 nixl_status_t
 launchGdakiKernel(nixlGpuXferReqH *req_handle,
                   int num_iterations,
-                  const std::string &coordination_level = "block",
+		  const char *level,
                   int threads_per_block = 256,
                   int blocks_per_grid = 1,
                   cudaStream_t stream = 0,
@@ -28,7 +28,7 @@ launchGdakiKernel(nixlGpuXferReqH *req_handle,
 nixl_status_t
 launchGdakiPartialKernel(nixlGpuXferReqH *req_handle,
                          int num_iterations,
-                         const std::string &coordination_level = "block",
+			 const char *level,
                          int threads_per_block = 256,
                          int blocks_per_grid = 1,
                          cudaStream_t stream = 0,
@@ -36,7 +36,7 @@ launchGdakiPartialKernel(nixlGpuXferReqH *req_handle,
                          const uint64_t remote_addr = 0);
 
 uint64_t
-readNixlGpuSignal(void *signal_addr);
+readNixlGpuSignal(const void *signal_addr, const char *gpulevel);
 
 #ifdef __cplusplus
 }

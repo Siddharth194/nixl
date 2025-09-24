@@ -9,19 +9,28 @@
 #include "gdaki_kernels.cuh"
 
 // Helper function to get request index based on coordination level (from gtest)
-template<nixl_gpu_xfer_coordination_level_t level>
+template<nixl_gpu_level_t level>
 __device__ constexpr size_t
 getRequestIndex() {
     switch (level) {
-    case NIXL_GPU_XFER_COORDINATION_THREAD:
+    case nixl_gpu_level_t::THREAD:
         return threadIdx.x;
-    case NIXL_GPU_XFER_COORDINATION_WARP:
+    case nixl_gpu_level_t::WARP:
         return threadIdx.x / warpSize;
-    case NIXL_GPU_XFER_COORDINATION_BLOCK:
+    case nixl_gpu_level_t::BLOCK:
         return 0;
     default:
         return 0;
     }
+}
+
+nixl_gpu_level_t
+getGpuLevel(const char *gdaki_level) {
+    if (!strcmp(gdaki_level, "WARP"))
+    	return nixl_gpu_level_t::WARP;
+    if (!strcmp(gdaki_level, "BLOCK"))
+	return nixl_gpu_level_t::BLOCK;
+    return nixl_gpu_level_t::THREAD;
 }
 
 // GDAKI kernel for full transfers (block coordination only)
@@ -36,7 +45,7 @@ gdakiFullTransferKernel(nixlGpuXferReqH *req_handle,
     // Execute transfers for the specified number of iterations
     for (int i = 0; i < num_iterations; i++) {
         // Post the GPU transfer request with signal increment of 1
-        nixl_status_t status = nixlGpuPostSignalXferReq<NIXL_GPU_XFER_COORDINATION_BLOCK>(
+        nixl_status_t status = nixlGpuPostSignalXferReq<nixl_gpu_level_t::BLOCK>(
             req_handle, 0, signal, true, &xfer_status);
         if (status != NIXL_SUCCESS && status != NIXL_IN_PROG) {
             return; // Early exit on error
@@ -44,7 +53,7 @@ gdakiFullTransferKernel(nixlGpuXferReqH *req_handle,
 
         // Wait for transfer completion
         do {
-            status = nixlGpuGetXferStatus<NIXL_GPU_XFER_COORDINATION_BLOCK>(&xfer_status);
+            status = nixlGpuGetXferStatus<nixl_gpu_level_t::BLOCK>(xfer_status);
         } while (status == NIXL_IN_PROG);
 
         if (status != NIXL_SUCCESS) {
@@ -54,7 +63,7 @@ gdakiFullTransferKernel(nixlGpuXferReqH *req_handle,
 }
 
 // GDAKI kernel for partial transfers (supports thread/warp/block coordination)
-template<nixl_gpu_xfer_coordination_level_t level>
+template<nixl_gpu_level_t level>
 __global__ void
 gdakiPartialTransferKernel(nixlGpuXferReqH *req_handle,
                            int num_iterations,
@@ -91,20 +100,17 @@ extern "C" {
 nixl_status_t
 launchGdakiKernel(nixlGpuXferReqH *req_handle,
                   int num_iterations,
-                  const std::string &coordination_level,
+                  const char *level,
                   int threads_per_block,
                   int blocks_per_grid,
                   cudaStream_t stream,
                   const uint64_t signal_inc,
                   const uint64_t remote_addr) {
 
+    nixl_gpu_level_t gpulevel = getGpuLevel(level);
+
     // Validate parameters
     if (num_iterations <= 0 || req_handle == nullptr) {
-        return NIXL_ERR_INVALID_PARAM;
-    }
-
-    if (coordination_level != "thread" && coordination_level != "warp" &&
-        coordination_level != "block") {
         return NIXL_ERR_INVALID_PARAM;
     }
 
@@ -117,13 +123,17 @@ launchGdakiKernel(nixlGpuXferReqH *req_handle,
     }
 
     // Use full transfer kernel for block coordination only
-    if (coordination_level == "block") {
+    if (gpulevel == nixl_gpu_level_t::BLOCK) {
         gdakiFullTransferKernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(req_handle,
-                                                                                   num_iterations);
+                                                                                   num_iterations,
+										   signal_inc,
+										   remote_addr);
     } else {
         // For thread/warp coordination, fall back to block coordination for full transfers
         gdakiFullTransferKernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(req_handle,
-                                                                                   num_iterations);
+                                                                                   num_iterations,
+										   signal_inc,
+										   remote_addr);
     }
 
     // Check for launch errors
@@ -138,20 +148,17 @@ launchGdakiKernel(nixlGpuXferReqH *req_handle,
 nixl_status_t
 launchGdakiPartialKernel(nixlGpuXferReqH *req_handle,
                          int num_iterations,
-                         const std::string &coordination_level,
+                         const char *level,
                          int threads_per_block,
                          int blocks_per_grid,
                          cudaStream_t stream,
                          const uint64_t signal_inc,
                          const uint64_t remote_addr) {
 
+    nixl_gpu_level_t gpulevel = getGpuLevel(level);
+
     // Validate parameters
     if (num_iterations <= 0 || req_handle == nullptr) {
-        return NIXL_ERR_INVALID_PARAM;
-    }
-
-    if (coordination_level != "thread" && coordination_level != "warp" &&
-        coordination_level != "block") {
         return NIXL_ERR_INVALID_PARAM;
     }
 
@@ -164,15 +171,15 @@ launchGdakiPartialKernel(nixlGpuXferReqH *req_handle,
     }
 
     // Launch partial transfer kernel based on coordination level
-    if (coordination_level == "thread") {
-        gdakiPartialTransferKernel<NIXL_GPU_XFER_COORDINATION_THREAD>
-            <<<blocks_per_grid, threads_per_block, 0, stream>>>(req_handle, num_iterations);
-    } else if (coordination_level == "warp") {
-        gdakiPartialTransferKernel<NIXL_GPU_XFER_COORDINATION_WARP>
-            <<<blocks_per_grid, threads_per_block, 0, stream>>>(req_handle, num_iterations);
-    } else if (coordination_level == "block") {
-        gdakiPartialTransferKernel<NIXL_GPU_XFER_COORDINATION_BLOCK>
-            <<<blocks_per_grid, threads_per_block, 0, stream>>>(req_handle, num_iterations);
+    if (gpulevel == nixl_gpu_level_t::THREAD) {
+        gdakiPartialTransferKernel<nixl_gpu_level_t::THREAD>
+            <<<blocks_per_grid, threads_per_block, 0, stream>>>(req_handle, num_iterations, signal_inc, remote_addr);
+    } else if (gpulevel == nixl_gpu_level_t::WARP) {
+        gdakiPartialTransferKernel<nixl_gpu_level_t::WARP>
+            <<<blocks_per_grid, threads_per_block, 0, stream>>>(req_handle, num_iterations, signal_inc, remote_addr);
+    } else if (gpulevel == nixl_gpu_level_t::BLOCK) {
+        gdakiPartialTransferKernel<nixl_gpu_level_t::BLOCK>
+            <<<blocks_per_grid, threads_per_block, 0, stream>>>(req_handle, num_iterations, signal_inc, remote_addr);
     }
 
     // Check for launch errors
@@ -185,8 +192,9 @@ launchGdakiPartialKernel(nixlGpuXferReqH *req_handle,
 }
 
 uint64_t
-readNixlGpuSignal(void *signal_addr) {
-    return nixlGpuReadSignal(signal_addr);
+readNixlGpuSignal(const void *signal_addr, const char *gpulevel) {
+    const nixl_gpu_level_t level = getGpuLevel(gpulevel);
+    return nixlGpuReadSignal<level>(signal_addr);
 }
 
 } // extern "C"
