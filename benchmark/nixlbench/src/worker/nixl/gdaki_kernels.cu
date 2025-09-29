@@ -3,8 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <cuda_runtime.h>
-#include <nixl_types.h>
 #include <gpu/ucx/nixl_device.cuh>
 #include "gdaki_kernels.cuh"
 
@@ -25,7 +23,7 @@ getRequestIndex() {
 }
 
 nixl_gpu_level_t
-getGpuLevel(const char *gdaki_level) {
+stringToGpuLevel(const char *gdaki_level) {
     if (!strcmp(gdaki_level, "WARP")) return nixl_gpu_level_t::WARP;
     if (!strcmp(gdaki_level, "BLOCK")) return nixl_gpu_level_t::BLOCK;
     return nixl_gpu_level_t::THREAD;
@@ -129,7 +127,7 @@ launchDeviceKernel(nixlGpuXferReqH *req_handle,
                    const uint64_t signal_inc,
                    const uint64_t remote_addr) {
 
-    nixl_gpu_level_t gpulevel = getGpuLevel(level);
+    nixl_gpu_level_t gpulevel = stringToGpuLevel(level);
     nixl_status_t ret =
         checkDeviceKernelParams(req_handle, num_iterations, threads_per_block, blocks_per_grid);
 
@@ -140,7 +138,7 @@ launchDeviceKernel(nixlGpuXferReqH *req_handle,
 
     // Use full transfer kernel for block coordination only
     if (gpulevel != nixl_gpu_level_t::BLOCK) {
-        std::cout << "GDAKI: Falling back to block coordination for full transfers" << std::endl;
+        std::cout << "Falling back to block coordination for full transfers" << std::endl;
     }
 
     gdakiFullTransferKernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(
@@ -149,6 +147,8 @@ launchDeviceKernel(nixlGpuXferReqH *req_handle,
     // Check for launch errors
     cudaError_t launch_error = cudaGetLastError();
     if (launch_error != cudaSuccess) {
+        std::cerr << "Failed to launch device full transfer kernel: "
+                  << cudaGetErrorString(launch_error) << std::endl;
         return NIXL_ERR_BACKEND;
     }
 
@@ -165,7 +165,7 @@ launchDevicePartialKernel(nixlGpuXferReqH *req_handle,
                           const uint64_t signal_inc,
                           const uint64_t remote_addr) {
 
-    nixl_gpu_level_t gpulevel = getGpuLevel(level);
+    nixl_gpu_level_t gpulevel = stringToGpuLevel(level);
     nixl_status_t ret =
         checkDeviceKernelParams(req_handle, num_iterations, threads_per_block, blocks_per_grid);
 
@@ -183,15 +183,16 @@ launchDevicePartialKernel(nixlGpuXferReqH *req_handle,
         gdakiPartialTransferKernel<nixl_gpu_level_t::WARP>
             <<<blocks_per_grid, threads_per_block, 0, stream>>>(
                 req_handle, num_iterations, signal_inc, remote_addr);
-    } else if (gpulevel == nixl_gpu_level_t::BLOCK) {
-        gdakiPartialTransferKernel<nixl_gpu_level_t::BLOCK>
-            <<<blocks_per_grid, threads_per_block, 0, stream>>>(
-                req_handle, num_iterations, signal_inc, remote_addr);
+    } else {
+        std::cerr << "Invalid GPU level selected for partial transfers: " << level << std::endl;
+        return NIXL_ERR_INVALID_PARAM;
     }
 
     // Check for launch errors
     cudaError_t launch_error = cudaGetLastError();
     if (launch_error != cudaSuccess) {
+        std::cerr << "Failed to launch device partial transfer kernel: "
+                  << cudaGetErrorString(launch_error) << std::endl;
         return NIXL_ERR_BACKEND;
     }
 
@@ -200,7 +201,7 @@ launchDevicePartialKernel(nixlGpuXferReqH *req_handle,
 
 uint64_t
 readNixlGpuSignal(const void *signal_addr, const char *gpulevel) {
-    const nixl_gpu_level_t level = getGpuLevel(gpulevel);
+    const nixl_gpu_level_t level = stringToGpuLevel(gpulevel);
     uint64_t count = 0;
     uint64_t *d_count = nullptr;
 

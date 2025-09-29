@@ -7,7 +7,6 @@
 #define GDAKI_KERNELS_CUH
 
 #include <iostream>
-#include <cuda_runtime.h>
 #include <nixl_types.h>
 
 #define MAX_THREADS 1024

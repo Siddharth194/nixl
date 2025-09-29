@@ -30,7 +30,6 @@ endif
 # Handle CUDA compilation if available
 cuda_objects = []
 if cuda_available and have_nixl_gdaki
-    message('BUIDLING nixl_cuda_obj !!!!!')
     # Find nvcc compiler
     nvcc = find_program('nvcc', required: false)
     if nvcc.found()
