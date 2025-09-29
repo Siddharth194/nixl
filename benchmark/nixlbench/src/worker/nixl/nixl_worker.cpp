@@ -1388,9 +1388,6 @@ void
 xferBenchNixlWorker::poll(size_t block_size) {
     unsigned int skip = 0, num_iter = 0, total_iter = 0;
 
-    if (is_gdaki_enabled) {
-        return device_poll();
-    }
     skip = xferBenchConfig::warmup_iter;
     num_iter = xferBenchConfig::num_iter;
 
