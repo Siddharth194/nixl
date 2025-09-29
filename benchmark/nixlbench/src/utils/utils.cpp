@@ -250,7 +250,8 @@ xferBenchConfig::loadFromFlags() {
                 }
             }
 
-            if (gdaki_threads_per_block < 1 || gdaki_threads_per_block > XFERBENCH_DEVICE_API_MAX_THREADS) {
+            if (gdaki_threads_per_block < 1 ||
+                gdaki_threads_per_block > XFERBENCH_DEVICE_API_MAX_THREADS) {
                 std::cerr << "Invalid GDAKI threads per block: " << gdaki_threads_per_block
                           << ". Must be between 1 and 1024" << std::endl;
                 return -1;
