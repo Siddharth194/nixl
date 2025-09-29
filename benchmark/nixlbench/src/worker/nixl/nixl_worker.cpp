@@ -573,14 +573,14 @@ xferBenchNixlWorker::cleanupBasicDescObj(xferBenchIOV &iov) {
 }
 
 std::optional<xferBenchIOV>
-xferBenchNixlWorker::initSignalBuffer(int mem_dev_id) {
+xferBenchNixlWorker::initSignalBuffer(int mem_dev_id, size_t sigsize) {
     if (!is_gdaki_enabled) {
         return std::nullopt;
     }
     switch (seg_type) {
 #if HAVE_CUDA
     case VRAM_SEG:
-        return initBasicDescVram(sizeof(uint64_t), mem_dev_id);
+        return initBasicDescVram(sigsize, mem_dev_id);
 #endif
     default:
         std::cerr << "Unsupported signal buffer memory type: " << seg_type << std::endl;
@@ -877,7 +877,13 @@ xferBenchNixlWorker::allocateMemory(int num_threads) {
 
         // Add signal buffer for GDAKI if enabled
         if (is_gdaki_enabled) {
-            std::optional<xferBenchIOV> signal_desc = initSignalBuffer(0);
+            size_t sigsize;
+            nixl_opt_args_t extra_params = {.backends = {backend_engine}};
+
+            CHECK_NIXL_ERROR(agent->getGpuSignalSize(sigsize, &extra_params),
+                             "getGpuSignalSize failed");
+
+            std::optional<xferBenchIOV> signal_desc = initSignalBuffer(0, sigsize);
             if (signal_desc) {
                 iov_list.push_back(signal_desc.value());
                 signal_buffers.push_back(signal_desc.value());
@@ -1133,6 +1139,36 @@ execDeviceTransfer(nixlAgent *agent,
         const int tid = omp_get_thread_num();
         const auto &local_iov = local_iovs[tid];
         const auto &remote_iov = remote_iovs[tid];
+        void **local_addrs;
+        size_t *lengths;
+        uint64_t *remote_addrs;
+        unsigned int desc_cnt;
+        unsigned int idx = 0;
+
+        desc_cnt = local_iov.size();
+        local_addrs = (void **)malloc(desc_cnt * sizeof(void *));
+        remote_addrs = (uint64_t *)malloc(desc_cnt * sizeof(uint64_t));
+        lengths = (size_t *)malloc(desc_cnt * sizeof(size_t));
+
+        if (!(local_addrs != NULL && remote_addrs != NULL && lengths != NULL)) {
+            std::cout << "Failed to allocate local, remote, lengths buffers" << std::endl;
+            if (local_addrs) free(local_addrs);
+            if (remote_addrs) free(remote_addrs);
+            if (lengths) free(lengths);
+            exit(EXIT_FAILURE);
+        }
+
+#pragma omp barrier
+
+        // Skip the signal buffer
+        for (idx = 0; idx < desc_cnt - 1; idx++) {
+            const auto &li = local_iov[idx];
+            const auto &ri = remote_iov[idx];
+
+            local_addrs[idx] = reinterpret_cast<void *>(li.addr);
+            lengths[idx++] = li.len;
+            remote_addrs[idx] = static_cast<std::uint64_t>(ri.addr);
+        }
 
         // TODO: fetch local_desc and remote_desc directly from config
         nixl_xfer_dlist_t local_desc(GET_SEG_TYPE(true));
@@ -1192,6 +1228,9 @@ execDeviceTransfer(nixlAgent *agent,
             CHECK_NIXL_ERROR(launchDevicePartialKernel(&gpu_req_handle,
                                                        num_iter,
                                                        gpu_level.data(),
+                                                       lengths,
+                                                       local_addrs,
+                                                       remote_addrs,
                                                        xferBenchConfig::gdaki_threads_per_block,
                                                        xferBenchConfig::gdaki_blocks_per_grid,
                                                        0,
@@ -1203,6 +1242,9 @@ execDeviceTransfer(nixlAgent *agent,
             CHECK_NIXL_ERROR(launchDeviceKernel(&gpu_req_handle,
                                                 num_iter,
                                                 gpu_level.data(),
+                                                lengths,
+                                                local_addrs,
+                                                remote_addrs,
                                                 xferBenchConfig::gdaki_threads_per_block,
                                                 xferBenchConfig::gdaki_blocks_per_grid,
                                                 0,
@@ -1230,6 +1272,9 @@ execDeviceTransfer(nixlAgent *agent,
 
         CHECK_NIXL_ERROR(agent->releaseXferReq(req), "releaseXferReq failed");
 
+        free(local_addrs);
+        free(lengths);
+        free(remote_addrs);
 #pragma omp critical
         { stats.add(thread_stats); }
     }
@@ -1384,6 +1429,42 @@ xferBenchNixlWorker::transfer(size_t block_size,
     return std::variant<xferBenchStats, int>(stats);
 }
 
+#if HAVE_NIXL_DEV_API
+void
+xferBenchNixlWorker::device_poll(size_t block_size, unsigned int skip, unsigned int num_iter) {
+    std::string_view gpu_level = *(xferBenchConfigGpuLevels.find(xferBenchConfig::gdaki_gpu_level));
+    unsigned int total_iter = skip + num_iter;
+
+    // GDAKI mode: Target monitors signal buffer instead of waiting for notifications
+    // Monitor signal buffer if we have one
+    if (!signal_buffers.empty()) {
+        void *signal_addr = reinterpret_cast<void *>(signal_buffers[0].addr);
+        // Wait for warmup iterations to complete
+        uint64_t count = 0;
+        while (count < skip) {
+            count = readNixlGpuSignal(signal_addr, gpu_level.data());
+            std::cout << "Got count in warmup: " << count << " while polling" << std::endl;
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        // Synchronize after warmup (match initiator)
+        synchronize();
+
+        // Wait for all iterations to complete
+        while (count < total_iter) {
+            count = readNixlGpuSignal(signal_addr, gpu_level.data());
+            std::cout << "Got count: " << count << " while polling" << std::endl;
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+    } else {
+        // No signal buffer available, just synchronize at the same points as initiator
+        std::cout << "No signal buffer available, using time-based synchronization" << std::endl;
+    }
+    // Final synchronize (match initiator)
+    synchronize();
+    return;
+}
+#endif
+
 void
 xferBenchNixlWorker::poll(size_t block_size) {
     unsigned int skip = 0, num_iter = 0, total_iter = 0;
@@ -1400,38 +1481,12 @@ xferBenchNixlWorker::poll(size_t block_size) {
 
     if (is_gdaki_enabled) {
 #if HAVE_NIXL_DEV_API
-        std::string_view gpu_level =
-            *(xferBenchConfigGpuLevels.find(xferBenchConfig::gdaki_gpu_level));
-
-        // GDAKI mode: Target monitors signal buffer instead of waiting for notifications
-        // Monitor signal buffer if we have one
-        if (!signal_buffers.empty()) {
-            void *signal_addr = reinterpret_cast<void *>(signal_buffers[0].addr);
-            // Wait for warmup iterations to complete
-            uint64_t count = 0;
-            while (count < skip) {
-                count = readNixlGpuSignal(signal_addr, gpu_level.data());
-                std::cout << "Got count in warmup: " << count << " while polling" << std::endl;
-                std::this_thread::sleep_for(std::chrono::milliseconds(1));
-            }
-            // Synchronize after warmup (match initiator)
-            synchronize();
-
-            // Wait for all iterations to complete
-            while (count < total_iter) {
-                count = readNixlGpuSignal(signal_addr, gpu_level.data());
-                std::cout << "Got count: " << count << " while polling" << std::endl;
-                std::this_thread::sleep_for(std::chrono::milliseconds(1));
-            }
-        } else {
-            // No signal buffer available, just synchronize at the same points as initiator
-            std::cout << "No signal buffer available, using time-based synchronization"
-                      << std::endl;
-        }
-        // Final synchronize (match initiator)
-        synchronize();
+        device_poll(block_size, skip, num_iter);
+#else
+        std::cerr << "Trying to run device API without supported header"
+                  << std::endl :
+#endif
         return;
-#endif /* HAVE_CUDE && HAVE_NIXL_DEV_API */
     }
 
     // Standard polling for non-GDAKI transfers

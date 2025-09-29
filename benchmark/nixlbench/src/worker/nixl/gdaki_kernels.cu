@@ -33,6 +33,9 @@ stringToGpuLevel(const char *gdaki_level) {
 __global__ void
 gdakiFullTransferKernel(nixlGpuXferReqH *req_handle,
                         int num_iterations,
+                        const size_t *lens,
+                        void *const *local_addrs,
+                        const uint64_t *remote_addrs,
                         const uint64_t signal_inc,
                         const uint64_t remote_addr) {
     __shared__ nixlGpuXferStatusH xfer_status;
@@ -41,8 +44,8 @@ gdakiFullTransferKernel(nixlGpuXferReqH *req_handle,
     // Execute transfers for the specified number of iterations
     for (int i = 0; i < num_iterations; i++) {
         // Post the GPU transfer request with signal increment of 1
-        nixl_status_t status = nixlGpuPostSignalXferReq<nixl_gpu_level_t::BLOCK>(
-            req_handle, 0, signal, true, &xfer_status);
+        nixl_status_t status = nixlGpuPostWriteXferReq<nixl_gpu_level_t::BLOCK>(
+            req_handle, lens, local_addrs, remote_addrs, signal, true, &xfer_status);
         if (status != NIXL_SUCCESS) {
             return; // Early exit on error
         }
@@ -63,6 +66,9 @@ template<nixl_gpu_level_t level>
 __global__ void
 gdakiPartialTransferKernel(nixlGpuXferReqH *req_handle,
                            int num_iterations,
+                           const size_t *lens,
+                           void *const *local_addrs,
+                           const uint64_t *remote_addrs,
                            const uint64_t signal_inc,
                            const uint64_t remote_addr) {
     __shared__ nixlGpuXferStatusH xfer_status[MAX_THREADS];
@@ -121,6 +127,9 @@ nixl_status_t
 launchDeviceKernel(nixlGpuXferReqH *req_handle,
                    int num_iterations,
                    const char *level,
+                   const size_t *lens,
+                   void *const *local_addrs,
+                   const uint64_t *remote_addrs,
                    int threads_per_block,
                    int blocks_per_grid,
                    cudaStream_t stream,
@@ -142,7 +151,7 @@ launchDeviceKernel(nixlGpuXferReqH *req_handle,
     }
 
     gdakiFullTransferKernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(
-        req_handle, num_iterations, signal_inc, remote_addr);
+        req_handle, num_iterations, lens, local_addrs, remote_addrs, signal_inc, remote_addr);
 
     // Check for launch errors
     cudaError_t launch_error = cudaGetLastError();
@@ -159,6 +168,9 @@ nixl_status_t
 launchDevicePartialKernel(nixlGpuXferReqH *req_handle,
                           int num_iterations,
                           const char *level,
+                          const size_t *lens,
+                          void *const *local_addrs,
+                          const uint64_t *remote_addrs,
                           int threads_per_block,
                           int blocks_per_grid,
                           cudaStream_t stream,
@@ -177,12 +189,22 @@ launchDevicePartialKernel(nixlGpuXferReqH *req_handle,
     // Launch partial transfer kernel based on coordination level
     if (gpulevel == nixl_gpu_level_t::THREAD) {
         gdakiPartialTransferKernel<nixl_gpu_level_t::THREAD>
-            <<<blocks_per_grid, threads_per_block, 0, stream>>>(
-                req_handle, num_iterations, signal_inc, remote_addr);
+            <<<blocks_per_grid, threads_per_block, 0, stream>>>(req_handle,
+                                                                num_iterations,
+                                                                lens,
+                                                                local_addrs,
+                                                                remote_addrs,
+                                                                signal_inc,
+                                                                remote_addr);
     } else if (gpulevel == nixl_gpu_level_t::WARP) {
         gdakiPartialTransferKernel<nixl_gpu_level_t::WARP>
-            <<<blocks_per_grid, threads_per_block, 0, stream>>>(
-                req_handle, num_iterations, signal_inc, remote_addr);
+            <<<blocks_per_grid, threads_per_block, 0, stream>>>(req_handle,
+                                                                num_iterations,
+                                                                lens,
+                                                                local_addrs,
+                                                                remote_addrs,
+                                                                signal_inc,
+                                                                remote_addr);
     } else {
         std::cerr << "Invalid GPU level selected for partial transfers: " << level << std::endl;
         return NIXL_ERR_INVALID_PARAM;

@@ -62,6 +62,8 @@ class xferBenchNixlWorker: public xferBenchWorker {
                     size_t block_size) override;
         void
         poll(size_t block_size) override;
+        void
+        device_poll(size_t block_size, unsigned int skip, unsigned int num_iter);
         int
         synchronizeStart();
         int
@@ -90,7 +92,7 @@ class xferBenchNixlWorker: public xferBenchWorker {
 #endif
         // GDAKI signal buffer management
         std::optional<xferBenchIOV>
-        initSignalBuffer(int mem_dev_id);
+        initSignalBuffer(int mem_dev_id, size_t sigsize);
         void
         cleanupSignalBuffer(std::optional<xferBenchIOV> &);
 
