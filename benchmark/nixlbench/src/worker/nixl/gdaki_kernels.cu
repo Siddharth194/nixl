@@ -78,8 +78,16 @@ gdakiPartialTransferKernel(nixlGpuXferReqH *req_handle,
     // Execute transfers for the specified number of iterations
     for (int i = 0; i < num_iterations; i++) {
         // Use partial transfer API which supports all coordination levels
-        nixl_status_t status = nixlGpuPostPartialWriteXferReq<level>(
-            req_handle, count, nullptr, lens, local_addrs, remote_addrs, signal, 1, true, &xfer_status);
+        nixl_status_t status = nixlGpuPostPartialWriteXferReq<level>(req_handle,
+                                                                     count,
+                                                                     nullptr,
+                                                                     lens,
+                                                                     local_addrs,
+                                                                     remote_addrs,
+                                                                     signal,
+                                                                     1,
+                                                                     true,
+                                                                     &xfer_status);
         if (status != NIXL_SUCCESS) {
             return; // Early exit on error
         }
@@ -192,6 +200,7 @@ launchDevicePartialKernel(nixlGpuXferReqH *req_handle,
         gdakiPartialTransferKernel<nixl_gpu_level_t::THREAD>
             <<<blocks_per_grid, threads_per_block, 0, stream>>>(req_handle,
                                                                 num_iterations,
+                                                                count,
                                                                 lens,
                                                                 local_addrs,
                                                                 remote_addrs,
@@ -201,6 +210,7 @@ launchDevicePartialKernel(nixlGpuXferReqH *req_handle,
         gdakiPartialTransferKernel<nixl_gpu_level_t::WARP>
             <<<blocks_per_grid, threads_per_block, 0, stream>>>(req_handle,
                                                                 num_iterations,
+                                                                count,
                                                                 lens,
                                                                 local_addrs,
                                                                 remote_addrs,
