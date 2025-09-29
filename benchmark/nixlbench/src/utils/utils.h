@@ -118,8 +118,8 @@
 #define XFERBENCH_WORKER_NVSHMEM  "nvshmem"
 
 // Device API
-#define XFERBENCH_API_MAX_THREADS 1024
-#define XFERBENCH_API_MAX_BLOCKS_PER_GRID 1
+#define XFERBENCH_DEV_API_MAX_THREADS 1024
+#define XFERBENCH_DEV_API_MIN_BLOCKS_PER_GRID 1
 
 #define IS_PAIRWISE_AND_SG() (XFERBENCH_SCHEME_PAIRWISE == xferBenchConfig::scheme && \
                               XFERBENCH_MODE_SG == xferBenchConfig::mode)
