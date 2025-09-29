@@ -877,6 +877,7 @@ xferBenchNixlWorker::allocateMemory(int num_threads) {
 
         // Add signal buffer for GDAKI if enabled
         if (is_gdaki_enabled) {
+#ifdef HAVE_NIXL_DEV_API
             size_t sigsize;
             nixl_opt_args_t extra_params = {.backends = {backend_engine}};
 
@@ -888,6 +889,7 @@ xferBenchNixlWorker::allocateMemory(int num_threads) {
                 iov_list.push_back(signal_desc.value());
                 signal_buffers.push_back(signal_desc.value());
             }
+#endif
         }
 
         nixl_reg_dlist_t desc_list(seg_type);
@@ -896,11 +898,13 @@ xferBenchNixlWorker::allocateMemory(int num_threads) {
         iov_lists.push_back(iov_list);
 
         if (is_gdaki_enabled) {
+#ifdef HAVE_NIXL_DEV_API
             nixl_reg_dlist_t sig_list(VRAM_SEG);
             iovListToNixlRegDlist(signal_buffers, sig_list);
             nixl_opt_args_t extra_params = {.backends = {backend_engine}};
 
             CHECK_NIXL_ERROR(agent->prepGpuSignal(sig_list, &extra_params), "prepGpuSignal failed");
+#endif
         }
     }
 
@@ -1228,6 +1232,7 @@ execDeviceTransfer(nixlAgent *agent,
             CHECK_NIXL_ERROR(launchDevicePartialKernel(&gpu_req_handle,
                                                        num_iter,
                                                        gpu_level.data(),
+                                                       desc_cnt,
                                                        lengths,
                                                        local_addrs,
                                                        remote_addrs,
@@ -1443,7 +1448,6 @@ xferBenchNixlWorker::device_poll(size_t block_size, unsigned int skip, unsigned 
         uint64_t count = 0;
         while (count < skip) {
             count = readNixlGpuSignal(signal_addr, gpu_level.data());
-            std::cout << "Got count in warmup: " << count << " while polling" << std::endl;
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
         // Synchronize after warmup (match initiator)

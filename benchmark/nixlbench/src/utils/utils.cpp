@@ -230,7 +230,7 @@ xferBenchConfig::loadFromFlags() {
                 xferBenchConfigGpuLevels.end()) {
                 std::cerr << "Invalid GDAKI gpu level: " << FLAGS_gdaki_gpu_level
                           << ". Must be: " << xferBenchConfigGpuLevelThread << ", "
-                          << xferBenchConfigGpuLevelWarp << ", or " << xferBenchConfigGpuLevelBlock
+                          << xferBenchConfigGpuLevelWarp << " or " << xferBenchConfigGpuLevelBlock
                           << std::endl;
                 return -1;
             }

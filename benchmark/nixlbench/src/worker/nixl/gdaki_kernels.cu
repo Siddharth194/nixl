@@ -66,27 +66,27 @@ template<nixl_gpu_level_t level>
 __global__ void
 gdakiPartialTransferKernel(nixlGpuXferReqH *req_handle,
                            int num_iterations,
+                           const size_t count,
                            const size_t *lens,
                            void *const *local_addrs,
                            const uint64_t *remote_addrs,
                            const uint64_t signal_inc,
                            const uint64_t remote_addr) {
-    __shared__ nixlGpuXferStatusH xfer_status[MAX_THREADS];
-    nixlGpuXferStatusH xfer_status_ptr = xfer_status[getRequestIndex<level>()];
+    nixlGpuXferStatusH xfer_status;
     nixlGpuSignal signal = {signal_inc, remote_addr};
 
     // Execute transfers for the specified number of iterations
     for (int i = 0; i < num_iterations; i++) {
         // Use partial transfer API which supports all coordination levels
         nixl_status_t status = nixlGpuPostPartialWriteXferReq<level>(
-            req_handle, 1ULL, nullptr, nullptr, nullptr, nullptr, signal, 1, true, &xfer_status_ptr);
+            req_handle, count, nullptr, lens, local_addrs, remote_addrs, signal, 1, true, &xfer_status);
         if (status != NIXL_SUCCESS) {
             return; // Early exit on error
         }
 
         // Wait for transfer completion
         do {
-            status = nixlGpuGetXferStatus<level>(xfer_status_ptr);
+            status = nixlGpuGetXferStatus<level>(xfer_status);
         } while (status == NIXL_IN_PROG);
 
         if (status != NIXL_SUCCESS) {
@@ -168,6 +168,7 @@ nixl_status_t
 launchDevicePartialKernel(nixlGpuXferReqH *req_handle,
                           int num_iterations,
                           const char *level,
+                          const size_t count,
                           const size_t *lens,
                           void *const *local_addrs,
                           const uint64_t *remote_addrs,
