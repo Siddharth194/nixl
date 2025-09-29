@@ -64,6 +64,14 @@ class xferBenchNixlWorker: public xferBenchWorker {
         poll(size_t block_size) override;
         int
         synchronizeStart();
+        int
+        send_wireup_notification(const std::string &remote_name);
+        int
+        wait_for_ack(const std::string &remote_name);
+        void
+        send_metadata(std::string local_md, int rank);
+        int
+        recv_and_load_metadata(int rank);
 
         // Data operations
         std::variant<xferBenchStats, int>
@@ -77,14 +85,14 @@ class xferBenchNixlWorker: public xferBenchWorker {
         void cleanupBasicDescDram(xferBenchIOV &basic_desc);
 #if HAVE_CUDA
         std::optional<xferBenchIOV> initBasicDescVram(size_t buffer_size, int mem_dev_id);
-        void cleanupBasicDescVram(xferBenchIOV &basic_desc);
-
+        void
+        cleanupBasicDescVram(xferBenchIOV &basic_desc);
 #endif
         // GDAKI signal buffer management
         std::optional<xferBenchIOV>
         initSignalBuffer(int mem_dev_id);
         void
-        cleanupSignalBuffer(xferBenchIOV &signal_desc);
+        cleanupSignalBuffer(std::optional<xferBenchIOV> &);
 
         // GDAKI wireup notification
         int

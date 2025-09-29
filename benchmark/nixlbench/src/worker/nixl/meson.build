@@ -51,10 +51,10 @@ if cuda_available and have_nixl_gdaki
         '-DHAVE_CUDA'
       ]
 
-      # Add UCX include path if ucx_path option is provided
-      ucx_path_opt = get_option('ucx_path')
-      if ucx_path_opt != ''
-        nvcc_args += ['-I' + ucx_path_opt + '/include']
+      # Add UCX include path if ucxpath_inc option is provided
+      ucxpath_inc = get_option('ucxpath_inc')
+      if ucxpath_inc != ''
+        nvcc_args += ['-I' + ucxpath_inc]
       endif
 
       # Compile CUDA kernels

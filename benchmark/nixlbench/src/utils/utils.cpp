@@ -238,11 +238,9 @@ xferBenchConfig::loadFromFlags() {
             gdaki_gpu_level = FLAGS_gdaki_gpu_level;
 
             // Inform about gpu coordination level support
-            if ((xferBenchConfigGpuLevels.find(gdaki_gpu_level) !=
-                 xferBenchConfigGpuLevels.end()) &&
-                (xferBenchConfigGpuLevelBlock != std::string_view(gdaki_gpu_level))) {
+            if (xferBenchConfigGpuLevelBlock != std::string_view(gdaki_gpu_level)) {
                 if (gdaki_enable_partial_transfers) {
-                    std::cout << "INFO: GDAKI using '" << gdaki_gpu_level
+                    std::cout << "INFO: GDAKI GPU Coordination level '" << gdaki_gpu_level
                               << "' gpu coordination with partial transfers enabled." << std::endl;
                 } else {
                     std::cout << "INFO: GDAKI GPU Coordination level '" << gdaki_gpu_level

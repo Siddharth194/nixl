@@ -156,31 +156,24 @@ if cuda_fabric_available
 endif
 
 have_nixl_gdaki = false
-nvcc_flags = []
-nvcc_flags += ['-gencode', 'arch=compute_80,code=sm_80']
-nvcc_flags += ['-gencode', 'arch=compute_90,code=sm_90']
-ucx_path = get_option('ucx_path')
-if ucx_path != ''
-    ucx_inc_path = ucx_path + '/include'
-    ucx_lib_path = ucx_path + '/lib'
-    ucx_dep = declare_dependency(
-        link_args : ['-L' + ucx_lib_path, '-lucp', '-lucs', '-luct'],
-        compile_args : ['-I' + ucx_inc_path])
+ucxpath_inc = get_option('ucxpath_inc')
+if ucxpath_inc != ''
     if cuda_available and add_languages('cuda', required: false)
 	nvcc = meson.get_compiler('cuda')
         test_code = '''#include "gpu/ucx/nixl_device.cuh"
                        int main() { return 0; }'''
 
         if nvcc.compiles(test_code,
-                        include_directories: include_directories(nixl_inc, ucx_inc_path),
-                        dependencies: [ucx_dep, cuda_dep],
-                        args: nvcc_flags)
+                        include_directories: include_directories(nixl_inc, ucxpath_inc),
+                        dependencies: [cuda_dep],
+                        args: nvcc_flags_link)
             have_nixl_gdaki = true
             add_project_arguments('-DHAVE_NIXL_DEV_API', language: ['cpp', 'cuda'])
         endif
     endif
-    message('Using NIXL Device API: ', have_nixl_gdaki)
 endif
+
+message('Using NIXL Device API: ', have_nixl_gdaki)
 
 # Subprojects
 subdir('src/utils')
@@ -211,7 +204,7 @@ endif
 if nvshmem_available
     deps += [nvshmem_lib]
     args += [
-        '-Xcompiler',
+        '-Xcompiler', '-fopenmp',
         '-Xlinker', '-rpath=/usr/local/cuda/lib64',
         '-Xlinker', '--allow-shlib-undefined',
         '-lcudart',

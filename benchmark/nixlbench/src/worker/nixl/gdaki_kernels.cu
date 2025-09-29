@@ -45,7 +45,7 @@ gdakiFullTransferKernel(nixlGpuXferReqH *req_handle,
         // Post the GPU transfer request with signal increment of 1
         nixl_status_t status = nixlGpuPostSignalXferReq<nixl_gpu_level_t::BLOCK>(
             req_handle, 0, signal, true, &xfer_status);
-        if (status != NIXL_SUCCESS && status != NIXL_IN_PROG) {
+        if (status != NIXL_SUCCESS) {
             return; // Early exit on error
         }
 
@@ -67,7 +67,6 @@ gdakiPartialTransferKernel(nixlGpuXferReqH *req_handle,
                            int num_iterations,
                            const uint64_t signal_inc,
                            const uint64_t remote_addr) {
-    constexpr size_t MAX_THREADS = 1024;
     __shared__ nixlGpuXferStatusH xfer_status[MAX_THREADS];
     nixlGpuXferStatusH xfer_status_ptr = xfer_status[getRequestIndex<level>()];
     nixlGpuSignal signal = {signal_inc, remote_addr};
@@ -77,7 +76,7 @@ gdakiPartialTransferKernel(nixlGpuXferReqH *req_handle,
         // Use partial transfer API which supports all coordination levels
         nixl_status_t status = nixlGpuPostPartialWriteXferReq<level>(
             req_handle, 1ULL, nullptr, nullptr, nullptr, nullptr, signal, 1, true, &xfer_status_ptr);
-        if (status != NIXL_SUCCESS && status != NIXL_IN_PROG) {
+        if (status != NIXL_SUCCESS) {
             return; // Early exit on error
         }
 
@@ -99,26 +98,17 @@ gdakiReadSignalKernel(const void *signal_addr, uint64_t *count) {
 }
 
 // Host-side launcher
-extern "C" {
-
 nixl_status_t
-launchGdakiKernel(nixlGpuXferReqH *req_handle,
-                  int num_iterations,
-                  const char *level,
-                  int threads_per_block,
-                  int blocks_per_grid,
-                  cudaStream_t stream,
-                  const uint64_t signal_inc,
-                  const uint64_t remote_addr) {
-
-    nixl_gpu_level_t gpulevel = getGpuLevel(level);
-
+checkDeviceKernelParams(nixlGpuXferReqH *req_handle,
+                        int num_iterations,
+                        int threads_per_block,
+                        int blocks_per_grid) {
     // Validate parameters
     if (num_iterations <= 0 || req_handle == nullptr) {
         return NIXL_ERR_INVALID_PARAM;
     }
 
-    if (threads_per_block < 1 || threads_per_block > 1024) {
+    if (threads_per_block < 1 || threads_per_block > MAX_THREADS) {
         return NIXL_ERR_INVALID_PARAM;
     }
 
@@ -126,15 +116,35 @@ launchGdakiKernel(nixlGpuXferReqH *req_handle,
         return NIXL_ERR_INVALID_PARAM;
     }
 
-    // Use full transfer kernel for block coordination only
-    if (gpulevel == nixl_gpu_level_t::BLOCK) {
-        gdakiFullTransferKernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(
-            req_handle, num_iterations, signal_inc, remote_addr);
-    } else {
-        // For thread/warp coordination, fall back to block coordination for full transfers
-        gdakiFullTransferKernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(
-            req_handle, num_iterations, signal_inc, remote_addr);
+    return NIXL_SUCCESS;
+}
+
+nixl_status_t
+launchDeviceKernel(nixlGpuXferReqH *req_handle,
+                   int num_iterations,
+                   const char *level,
+                   int threads_per_block,
+                   int blocks_per_grid,
+                   cudaStream_t stream,
+                   const uint64_t signal_inc,
+                   const uint64_t remote_addr) {
+
+    nixl_gpu_level_t gpulevel = getGpuLevel(level);
+    nixl_status_t ret =
+        checkDeviceKernelParams(req_handle, num_iterations, threads_per_block, blocks_per_grid);
+
+    if (ret != NIXL_SUCCESS) {
+        std::cerr << "Failed to validate kernel launch parameters" << std::endl;
+        return ret;
     }
+
+    // Use full transfer kernel for block coordination only
+    if (gpulevel != nixl_gpu_level_t::BLOCK) {
+        std::cout << "GDAKI: Falling back to block coordination for full transfers" << std::endl;
+    }
+
+    gdakiFullTransferKernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(
+        req_handle, num_iterations, signal_inc, remote_addr);
 
     // Check for launch errors
     cudaError_t launch_error = cudaGetLastError();
@@ -146,28 +156,22 @@ launchGdakiKernel(nixlGpuXferReqH *req_handle,
 }
 
 nixl_status_t
-launchGdakiPartialKernel(nixlGpuXferReqH *req_handle,
-                         int num_iterations,
-                         const char *level,
-                         int threads_per_block,
-                         int blocks_per_grid,
-                         cudaStream_t stream,
-                         const uint64_t signal_inc,
-                         const uint64_t remote_addr) {
+launchDevicePartialKernel(nixlGpuXferReqH *req_handle,
+                          int num_iterations,
+                          const char *level,
+                          int threads_per_block,
+                          int blocks_per_grid,
+                          cudaStream_t stream,
+                          const uint64_t signal_inc,
+                          const uint64_t remote_addr) {
 
     nixl_gpu_level_t gpulevel = getGpuLevel(level);
+    nixl_status_t ret =
+        checkDeviceKernelParams(req_handle, num_iterations, threads_per_block, blocks_per_grid);
 
-    // Validate parameters
-    if (num_iterations <= 0 || req_handle == nullptr) {
-        return NIXL_ERR_INVALID_PARAM;
-    }
-
-    if (threads_per_block < 1 || threads_per_block > 1024) {
-        return NIXL_ERR_INVALID_PARAM;
-    }
-
-    if (blocks_per_grid < 1) {
-        return NIXL_ERR_INVALID_PARAM;
+    if (ret != NIXL_SUCCESS) {
+        std::cerr << "Failed to validate kernel launch parameters" << std::endl;
+        return ret;
     }
 
     // Launch partial transfer kernel based on coordination level
@@ -201,8 +205,8 @@ readNixlGpuSignal(const void *signal_addr, const char *gpulevel) {
     uint64_t *d_count = nullptr;
 
     // Allocate device memory for the result
-    cudaMalloc(&d_count, sizeof(uint64_t));
-    if (!d_count) {
+    cudaError_t err = cudaMalloc(&d_count, sizeof(uint64_t));
+    if (err != cudaSuccess || !d_count) {
         return 0;
     }
 
@@ -210,7 +214,7 @@ readNixlGpuSignal(const void *signal_addr, const char *gpulevel) {
     if (level == nixl_gpu_level_t::THREAD) {
         gdakiReadSignalKernel<nixl_gpu_level_t::THREAD><<<1, 1>>>(signal_addr, d_count);
     } else if (level == nixl_gpu_level_t::WARP) {
-        gdakiReadSignalKernel<nixl_gpu_level_t::WARP><<<1, 32>>>(signal_addr, d_count);
+        gdakiReadSignalKernel<nixl_gpu_level_t::WARP><<<1, 1>>>(signal_addr, d_count);
     } else if (level == nixl_gpu_level_t::BLOCK) {
         gdakiReadSignalKernel<nixl_gpu_level_t::BLOCK><<<1, 1>>>(signal_addr, d_count);
     }
@@ -224,5 +228,3 @@ readNixlGpuSignal(const void *signal_addr, const char *gpulevel) {
 
     return count;
 }
-
-} // extern "C"
