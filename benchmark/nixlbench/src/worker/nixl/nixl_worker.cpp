@@ -1487,8 +1487,7 @@ xferBenchNixlWorker::poll(size_t block_size) {
 #if HAVE_NIXL_DEV_API
         device_poll(block_size, skip, num_iter);
 #else
-        std::cerr << "Trying to run device API without supported header"
-                  << std::endl;
+        std::cerr << "Trying to run device API without supported header" << std::endl;
 #endif
         return;
     }

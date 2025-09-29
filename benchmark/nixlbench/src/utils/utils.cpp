@@ -250,13 +250,13 @@ xferBenchConfig::loadFromFlags() {
                 }
             }
 
-            if (gdaki_threads_per_block < 1 || gdaki_threads_per_block > 1024) {
+            if (gdaki_threads_per_block < 1 || gdaki_threads_per_block > XFERBENCH_DEVICE_API_MAX_THREADS) {
                 std::cerr << "Invalid GDAKI threads per block: " << gdaki_threads_per_block
                           << ". Must be between 1 and 1024" << std::endl;
                 return -1;
             }
 
-            if (gdaki_blocks_per_grid < 1) {
+            if (gdaki_blocks_per_grid < XFERBENCH_API_MAX_BLOCKS_PER_GRID) {
                 std::cerr << "Invalid GDAKI blocks per grid: " << gdaki_blocks_per_grid
                           << ". Must be >= 1" << std::endl;
                 return -1;
