@@ -893,11 +893,12 @@ xferBenchNixlWorker::allocateMemory(int num_threads) {
         }
 
         nixl_reg_dlist_t desc_list(seg_type);
+        
         iovListToNixlRegDlist(iov_list, desc_list);
         CHECK_NIXL_ERROR(agent->registerMem(desc_list, &opt_args), "registerMem failed");
         iov_lists.push_back(iov_list);
 
-        if (is_gdaki_enabled) {
+        if (is_gdaki_enabled && isTarget()) {
 #ifdef HAVE_NIXL_DEV_API
             nixl_reg_dlist_t sig_list(VRAM_SEG);
             iovListToNixlRegDlist(signal_buffers, sig_list);
@@ -1247,6 +1248,7 @@ execDeviceTransfer(nixlAgent *agent,
             CHECK_NIXL_ERROR(launchDeviceKernel(&gpu_req_handle,
                                                 num_iter,
                                                 gpu_level.data(),
+                                                desc_cnt,
                                                 lengths,
                                                 local_addrs,
                                                 remote_addrs,

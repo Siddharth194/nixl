@@ -24,6 +24,7 @@ nixl_status_t
 launchDeviceKernel(nixlGpuXferReqH *req_handle,
                    int num_iterations,
                    const char *level,
+                   const size_t count,
                    const size_t *lens,
                    void *const *local_addrs,
                    const uint64_t *remote_addrs,
