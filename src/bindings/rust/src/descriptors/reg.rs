@@ -183,9 +183,14 @@ impl<'a> RegDescList<'a> {
     }
 
     /// Resizes the list to the given size
-    pub fn resize(&mut self, _new_size: usize) -> Result<(), NixlError> {
-        self.sync_mgr.mutate(|_data| {
-            // No-op for now; backend capacity will be adjusted on next sync
+    pub fn resize(&mut self, new_size: usize) -> Result<(), NixlError> {
+        self.sync_mgr.mutate(|data| {
+            data.descriptors.resize(new_size, RegDescriptor {
+                addr: 0,
+                len: 0,
+                dev_id: 0,
+                metadata: Vec::new(),
+            });
         });
         Ok(())
     }
