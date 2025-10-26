@@ -676,8 +676,12 @@ nixl_status_t
 nixlAgentData::loadConnInfo(const std::string &remote_name,
                             const nixl_backend_t &backend,
                             const nixl_blob_t &conn_info) {
+    // New debug instrumentation to help trace NIXL_ERR_NOT_ALLOWED during MD load
+    std::cout << endl << "loadConnInfo called for remote='" << remote_name
+               << "' backend='" << backend << "' conn_info_len=" << conn_info.size() << endl;
+
     if (backendEngines.count(backend) == 0) {
-        NIXL_DEBUG << "Agent " << name << " does not support a remote backend: " << backend;
+        std::cout << "Agent " << name << " does not support a remote backend: " << backend;
         return NIXL_ERR_NOT_SUPPORTED;
     }
 
@@ -693,28 +697,38 @@ nixlAgentData::loadConnInfo(const std::string &remote_name,
 
     nixlBackendEngine *eng = backendEngines[backend];
     if (!eng->supportsRemote()) {
-        NIXL_DEBUG << backend << " does not support remote operations";
+        std::cout << endl << backend << " does not support remote operations\n";
         return NIXL_ERR_NOT_SUPPORTED;
     }
 
     const nixl_status_t ret = eng->loadRemoteConnInfo(remote_name, conn_info);
-    if (ret != NIXL_SUCCESS) {
-        return ret;
+    std::cout << endl << "Backend '" << backend << "' loadRemoteConnInfo returned "
+               << nixlEnumStrings::statusStr(ret) << " for remote='" << remote_name
+               << "' conn_info_len=" << conn_info.size() << endl;
+
+    // If backend accepted the connection info, record it so we don't reload later.
+    if (ret == NIXL_SUCCESS) 
+    {
+        std::cout << "\nRemote Backends updated with record " << remote_name << endl;
+        remoteBackends[remote_name][backend] = conn_info;
     }
 
-    remoteBackends[remote_name].emplace(backend, conn_info);
-    return NIXL_SUCCESS;
+    return ret;
 }
 
 nixl_status_t
-nixlAgentData::loadRemoteSections(const std::string &remote_name, nixlSerDes &sd) {
+nixlAgentData::loadRemoteSections(const std::string &remote_name, nixlSerDes &sd)
+{
     if (remoteSections.count(remote_name) == 0) {
         remoteSections[remote_name] = new nixlRemoteSection(remote_name);
     }
 
+    std::cout << "Load Remote Sections called for " << remote_name << endl;
+
     const nixl_status_t ret = remoteSections[remote_name]->loadRemoteData(&sd, backendEngines);
     // TODO: can be more graceful, if just the new MD blob was improper
     if (ret != NIXL_SUCCESS) {
+        std::cout << "Failure in loadRemoteData \n";
         delete remoteSections[remote_name];
         remoteSections.erase(remote_name);
         remoteBackends.erase(remote_name);

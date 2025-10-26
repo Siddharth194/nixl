@@ -845,7 +845,8 @@ nixlAgent::createXferReq(const nixl_xfer_op_t &operation,
                          const nixl_xfer_dlist_t &remote_descs,
                          const std::string &remote_agent,
                          nixlXferReqH* &req_hndl,
-                         const nixl_opt_args_t* extra_params) const {
+                         const nixl_opt_args_t* extra_params,
+                         bool remoteAddr) const {
     nixl_status_t     ret1, ret2;
     nixl_opt_b_args_t opt_args;
 
@@ -853,11 +854,14 @@ nixlAgent::createXferReq(const nixl_xfer_op_t &operation,
 
     req_hndl = nullptr;
 
+    std::cout << "\nSearching remoteSections for " << remote_agent << std::endl;
+
     NIXL_SHARED_LOCK_GUARD(data->lock);
     if (data->remoteSections.count(remote_agent) == 0)
     {
         NIXL_ERROR_FUNC << "metadata for remote agent '" << remote_agent << "' not found";
         data->addErrorTelemetry(NIXL_ERR_NOT_FOUND);
+        std::cout << "createXferReq: remoteSections entry not found for " << remote_agent << std::endl;
         return NIXL_ERR_NOT_FOUND;
     }
 
@@ -866,11 +870,14 @@ nixlAgent::createXferReq(const nixl_xfer_op_t &operation,
     if (local_descs.descCount() != remote_descs.descCount()) {
         NIXL_ERROR_FUNC << "different descriptor list sizes (local=" << local_descs.descCount()
                         << ", remote=" << remote_descs.descCount() << ")";
+        std::cout << "createXferReq: descriptor list size mismatch (local=" << local_descs.descCount()
+                  << ", remote=" << remote_descs.descCount() << ")" << std::endl;
         return NIXL_ERR_INVALID_PARAM;
     }
     for (int i = 0; i < local_descs.descCount(); ++i) {
         if (local_descs[i].len != remote_descs[i].len) {
             NIXL_ERROR_FUNC << "length mismatch at index " << i;
+            std::cout << "createXferReq: length mismatch at index " << i << std::endl;
             return NIXL_ERR_INVALID_PARAM;
         }
         total_bytes += local_descs[i].len;
@@ -887,8 +894,17 @@ nixlAgent::createXferReq(const nixl_xfer_op_t &operation,
         if (!local_set || !remote_set) {
             NIXL_ERROR_FUNC << "no backends found for local or remote for their "
                                "corresponding memory type";
+            std::cout << "createXferReq: no backends for local or remote memory type" << std::endl;
             return NIXL_ERR_NOT_FOUND;
         }
+
+        std::cout << "createXferReq: local candidate backends: ";
+        for (auto &b : *local_set) std::cout << b->getType() << " ";
+        std::cout << std::endl;
+
+        std::cout << "createXferReq: remote candidate backends: ";
+        for (auto &b : *remote_set) std::cout << b->getType() << " ";
+        std::cout << std::endl;
 
         for (auto & elm : *local_set)
             if (remote_set->count(elm) != 0)
@@ -896,11 +912,20 @@ nixlAgent::createXferReq(const nixl_xfer_op_t &operation,
 
         if (backend_set->empty()) {
             NIXL_ERROR_FUNC << "no potential backend found to be able to do the transfer";
+            std::cout << "createXferReq: no common backends between local and remote" << std::endl;
             return NIXL_ERR_NOT_FOUND;
         }
+
+        std::cout << "createXferReq: common candidate backends: ";
+        for (auto &b : *backend_set) std::cout << b->getType() << " ";
+        std::cout << std::endl;
     } else {
-        for (auto & elm : extra_params->backends)
+        std::cout << "createXferReq: using backends provided in extra_params: ";
+        for (auto & elm : extra_params->backends) {
             backend_set->insert(elm->engine);
+            std::cout << elm->engine->getType() << " ";
+        }
+        std::cout << std::endl;
     }
 
     // TODO: when central KV is supported, add a call to fetchRemoteMD
@@ -917,14 +942,22 @@ nixlAgent::createXferReq(const nixl_xfer_op_t &operation,
     for (auto & backend : *backend_set) {
         // If populate fails, it clears the resp before return
         ret1 = data->memorySection->populate(
-                     local_descs, backend, *handle->initiatorDescs);
+                     local_descs, backend, *handle->initiatorDescs, false);
+
+        std::cout << std::endl;
         ret2 = data->remoteSections[remote_agent]->populate(
-                     remote_descs, backend, *handle->targetDescs);
+                     remote_descs, backend, *handle->targetDescs, remoteAddr);
+
+        std::cout << "createXferReq: backend " << backend->getType()
+                  << " populate results: local=" << ret1 << " remote=" << ret2 << std::endl;
 
         if ((ret1 == NIXL_SUCCESS) && (ret2 == NIXL_SUCCESS)) {
             NIXL_INFO << "Selected backend: " << backend->getType();
+            std::cout << "createXferReq: selected backend " << backend->getType() << std::endl;
             handle->engine = backend;
             break;
+        } else {
+            NIXL_DEBUG << "backend '" << backend->getType() << "' cannot be used for this transfer";
         }
     }
 
@@ -932,6 +965,7 @@ nixlAgent::createXferReq(const nixl_xfer_op_t &operation,
         NIXL_ERROR_FUNC << "no specified or potential backend had the required "
                            "registrations to be able to do the transfer";
         data->addErrorTelemetry(NIXL_ERR_NOT_FOUND);
+        std::cout << "createXferReq: no suitable backend found after populate attempts" << std::endl;
         return NIXL_ERR_NOT_FOUND;
     }
 
@@ -949,6 +983,7 @@ nixlAgent::createXferReq(const nixl_xfer_op_t &operation,
         NIXL_ERROR_FUNC << "the selected backend '" << handle->engine->getType()
                         << "' does not support notifications";
         data->addErrorTelemetry(NIXL_ERR_BACKEND);
+        std::cout << "createXferReq: selected backend does not support notifications" << std::endl;
         return NIXL_ERR_BACKEND;
     }
 
@@ -973,9 +1008,12 @@ nixlAgent::createXferReq(const nixl_xfer_op_t &operation,
         NIXL_ERROR_FUNC << "backend '" << handle->engine->getType()
                         << "' failed to prepare the transfer request with status " << ret1;
         data->addErrorTelemetry(ret1);
+        std::cout << "createXferReq: prepXfer failed for backend " << handle->engine->getType()
+                  << " with status " << ret1 << std::endl;
         return ret1;
     }
 
+    std::cout << "createXferReq: prepXfer succeeded for backend " << handle->engine->getType() << std::endl;
     req_hndl = handle.release();
     return NIXL_SUCCESS;
 }
@@ -1627,6 +1665,7 @@ nixlAgent::loadRemoteMD (const nixl_blob_t &remote_metadata,
         }
 
         ret = data->loadConnInfo(remote_agent, nixl_backend, conn_info);
+
         if (ret == NIXL_SUCCESS) {
             count++;
         } else if (ret != NIXL_ERR_NOT_SUPPORTED) {
@@ -1820,4 +1859,37 @@ nixlAgent::checkRemoteMD (const std::string remote_name,
 
     // This is a checker method, returning not found is not an error to be logged
     return NIXL_ERR_NOT_FOUND;
+}
+
+nixl_status_t nixlAgent::getRemoteFirstAddr(const std::string &remote_agent,
+                                            nixl_mem_t mem,
+                                            const nixl_backend_t &backend_name,
+                                            uintptr_t &out_addr) const {
+    if (remote_agent.empty())
+        return NIXL_ERR_INVALID_PARAM;
+
+    NIXL_SHARED_LOCK_GUARD(data->lock);
+
+    if (data->remoteSections.count(remote_agent) == 0)
+        return NIXL_ERR_NOT_FOUND;
+
+    // backend_name must be present locally (engine pointers stored by name/type)
+    if (data->backendEngines.count(backend_name) == 0)
+        return NIXL_ERR_NOT_FOUND;
+
+    nixlBackendEngine* eng = data->backendEngines.at(backend_name);
+    if (!eng)
+        return NIXL_ERR_NOT_FOUND;
+
+    nixlRemoteSection* rs = data->remoteSections.at(remote_agent);
+    if (!rs)
+        return NIXL_ERR_NOT_FOUND;
+
+    nixlSectionDesc sd;
+    nixl_status_t r = rs->getFirstMetaDesc(mem, eng, sd);
+    if (r != NIXL_SUCCESS)
+        return r;
+
+    out_addr = sd.addr;
+    return NIXL_SUCCESS;
 }

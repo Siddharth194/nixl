@@ -31,6 +31,9 @@ class nixlAgentConfig {
 
         /** @var Enable progress thread */
         bool     useProgThread;
+
+    public:
+
         /** @var Enable listener thread */
         bool     useListenThread;
         /** @var Port for listener thread to use */
@@ -39,8 +42,6 @@ class nixlAgentConfig {
         nixl_thread_sync_t syncMode;
         /** @var Capture telemetry info regardless of environment variables*/
         bool captureTelemetry;
-
-    public:
 
         /**
          * @var Progress thread event waiting timeout.

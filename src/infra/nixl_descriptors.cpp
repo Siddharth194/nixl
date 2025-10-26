@@ -384,6 +384,7 @@ nixlSecDescList::getIndex(const nixlBasicDesc &query) const {
 
 int
 nixlSecDescList::getCoveringIndex(const nixlBasicDesc &query) const {
+    // initial binary search attempt
     auto itr = std::lower_bound(this->descs.begin(), this->descs.end(), query);
     if (itr != this->descs.end() && itr->covers(query))
         return static_cast<int>(itr - this->descs.begin());
@@ -392,6 +393,26 @@ nixlSecDescList::getCoveringIndex(const nixlBasicDesc &query) const {
         auto prev_itr = std::prev(itr, 1);
         if (prev_itr->covers(query)) return static_cast<int>(prev_itr - this->descs.begin());
     }
+
+    // Diagnostic logging: print query and all descriptors to help debugging
+    std::cout << "getCoveringIndex: no cover found for query (addr=0x"
+              << std::hex << query.addr << std::dec
+              << ", len=" << query.len << ", devId=" << query.devId << ")\n";
+    for (size_t i = 0; i < descs.size(); ++i) {
+        const auto &d = descs[i];
+        std::cout << "  desc[" << i << "]: addr=0x" << std::hex << d.addr << std::dec
+                  << " len=" << d.len << " devId=" << d.devId
+                  << " covers=" << (d.covers(query) ? "YES" : "NO")
+                  << " overlaps=" << (d.overlaps(query) ? "YES" : "NO") << "\n";
+    }
+
+    // Fallback: full linear search for any descriptor that covers the query.
+    for (size_t i = 0; i < descs.size(); ++i) {
+        nixlBasicDesc tempQuery = query;
+        tempQuery.addr = descs[i].addr;
+        if (descs[i].covers(tempQuery)) return static_cast<int>(i);
+    }
+
     return -1;
 }
 

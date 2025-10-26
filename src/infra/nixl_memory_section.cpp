@@ -38,7 +38,8 @@ backend_set_t* nixlMemSection::queryBackends (const nixl_mem_t &mem) {
 
 nixl_status_t nixlMemSection::populate (const nixl_xfer_dlist_t &query,
                                         nixlBackendEngine* backend,
-                                        nixl_meta_dlist_t &resp) const {
+                                        nixl_meta_dlist_t &resp,
+                                        bool remoteAddr) const {
 
     if ((query.getType() != resp.getType()) || (query.descCount() == 0))
         return NIXL_ERR_INVALID_PARAM;
@@ -344,14 +345,45 @@ nixl_status_t nixlRemoteSection::addDescList (
     return NIXL_SUCCESS;
 }
 
+// nixl_status_t nixlRemoteSection::loadRemoteData (nixlSerDes* deserializer,
+//                                                  backend_map_t &backendToEngineMap) 
+// {
+//     nixl_status_t ret;
+//     size_t seg_count;
+//     nixl_backend_t nixl_backend;
+
+//     ret = deserializer->getBuf("nixlSecElms", &seg_count, sizeof(seg_count));
+//     if (ret) return ret;
+
+//     for (size_t i=0; i<seg_count; ++i) {
+//         // In case of errors, no need to remove the previous entries
+//         // Agent will delete the full object.
+//         nixl_backend = deserializer->getStr("bknd");
+//         if (nixl_backend.size()==0)
+//             return NIXL_ERR_INVALID_PARAM;
+//         nixl_reg_dlist_t s_desc(deserializer);
+//         if (s_desc.descCount()==0) // can be used for entry removal in future
+//             return NIXL_ERR_NOT_FOUND;
+//         if (backendToEngineMap.count(nixl_backend) != 0) {
+//             ret = addDescList(s_desc, backendToEngineMap[nixl_backend]);
+//             if (ret) return ret;
+//         }
+//     }
+//     return NIXL_SUCCESS;
+// }
+
+
 nixl_status_t nixlRemoteSection::loadRemoteData (nixlSerDes* deserializer,
-                                                 backend_map_t &backendToEngineMap) {
+                                                 backend_map_t &backendToEngineMap) 
+{
     nixl_status_t ret;
     size_t seg_count;
     nixl_backend_t nixl_backend;
 
     ret = deserializer->getBuf("nixlSecElms", &seg_count, sizeof(seg_count));
     if (ret) return ret;
+
+    std::cout << "loadRemoteData: seg_count=" << seg_count << " for agent=" << agentName;
 
     for (size_t i=0; i<seg_count; ++i) {
         // In case of errors, no need to remove the previous entries
@@ -360,8 +392,17 @@ nixl_status_t nixlRemoteSection::loadRemoteData (nixlSerDes* deserializer,
         if (nixl_backend.size()==0)
             return NIXL_ERR_INVALID_PARAM;
         nixl_reg_dlist_t s_desc(deserializer);
+
+        std::cout << "loadRemoteData: backend='" << nixl_backend << "' descCount=" << s_desc.descCount();
+
         if (s_desc.descCount()==0) // can be used for entry removal in future
             return NIXL_ERR_NOT_FOUND;
+
+        if (backendToEngineMap.count(nixl_backend) == 0) {
+            std::cout << "loadRemoteData: no local engine for backend '" << nixl_backend << "'; skipping";
+            continue;
+        }
+
         if (backendToEngineMap.count(nixl_backend) != 0) {
             ret = addDescList(s_desc, backendToEngineMap[nixl_backend]);
             if (ret) return ret;
@@ -369,6 +410,7 @@ nixl_status_t nixlRemoteSection::loadRemoteData (nixlSerDes* deserializer,
     }
     return NIXL_SUCCESS;
 }
+
 
 nixl_status_t nixlRemoteSection::loadLocalData (
                                  const nixl_sec_dlist_t& mem_elms,
@@ -400,4 +442,23 @@ nixlRemoteSection::~nixlRemoteSection() {
         delete dlist;
     }
     // nixlMemSection destructor will clean up the rest
+}
+
+nixl_status_t nixlRemoteSection::getFirstMetaDesc(nixl_mem_t mem,
+                                                 nixlBackendEngine* backend,
+                                                 nixlSectionDesc &out) {
+    if (!backend)
+        return NIXL_ERR_INVALID_PARAM;
+
+    section_key_t key = std::make_pair(mem, backend);
+    auto it = sectionMap.find(key);
+    if (it == sectionMap.end())
+        return NIXL_ERR_NOT_FOUND;
+
+    const nixl_sec_dlist_t *list = it->second;
+    if (list->descCount() == 0)
+        return NIXL_ERR_NOT_FOUND;
+
+    out = (*list)[0]; // copy first section descriptor
+    return NIXL_SUCCESS;
 }

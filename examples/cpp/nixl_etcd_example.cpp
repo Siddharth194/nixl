@@ -228,7 +228,7 @@ int main() {
 
     extra_params1.notifMsg = "notification";
     extra_params1.hasNotif = true;
-    ret1 = A1.createXferReq(NIXL_WRITE, req_src_descs, req_dst_descs, AGENT2_NAME, req_handle, &extra_params1);
+    ret1 = A1.createXferReq(NIXL_WRITE, req_src_descs, req_dst_descs, AGENT2_NAME, req_handle, &extra_params1, true);
     std::cout << "Xfer request created, status: " << nixlEnumStrings::statusStr(ret1) << std::endl;
     nixl_exit_on_failure(ret1, "Failed to create Xfer Req", AGENT1_NAME);
 
@@ -258,6 +258,17 @@ int main() {
     nixl_exit_on_failure(ret1, "Failed to deregister memory", AGENT1_NAME);
     nixl_exit_on_failure(ret2, "Failed to deregister memory", AGENT2_NAME);
 
+
+
+
+
+
+
+
+
+
+
+    
     // 3. Partial Metadata Exchange
     std::cout << "\n3. Sending partial metadata to etcd...\n";
 

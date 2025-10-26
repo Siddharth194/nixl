@@ -240,7 +240,8 @@ class nixlAgent {
                        const nixl_xfer_dlist_t &remote_descs,
                        const std::string &remote_agent,
                        nixlXferReqH* &req_hndl,
-                       const nixl_opt_args_t* extra_params = nullptr) const;
+                       const nixl_opt_args_t* extra_params = nullptr,
+                       bool remoteAddr = false) const;
 
         /*** Operations on prepared Transfer Request ***/
 
@@ -554,6 +555,12 @@ class nixlAgent {
         nixl_status_t
         checkRemoteMD (const std::string remote_name,
                        const nixl_xfer_dlist_t &descs) const;
+        
+        nixl_status_t
+        getRemoteFirstAddr(const std::string &remote_agent,
+                                     nixl_mem_t mem,
+                                     const nixl_backend_t &backend_name,
+                                     uintptr_t &out_addr) const;
 
 };
 

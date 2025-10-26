@@ -66,8 +66,7 @@ void printParams(const nixl_b_params_t& params, const nixl_mem_list_t& mems) {
     }
 }
 
-int
-main(int argc, char **argv) {
+int main(int argc, char **argv) {
     nixl_status_t ret1, ret2;
     std::string ret_s1, ret_s2;
 

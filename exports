@@ -1,0 +1,2 @@
+export NIXL_PLUGIN_DIR=/home/siddharth/Documents/GitHub/nixl/build_2/src/core/plugins
+export LD_LIBRARY_PATH=/opt/libfabric/lib:$LD_LIBRARY_PATH

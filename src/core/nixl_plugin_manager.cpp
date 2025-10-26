@@ -27,6 +27,7 @@
 #include <string>
 #include <map>
 #include <dlfcn.h>
+#include <iostream>
 
 using lock_guard = const std::lock_guard<std::mutex>;
 
@@ -118,9 +119,14 @@ std::map<nixl_backend_t, std::string> loadPluginList(const std::string& filename
 std::shared_ptr<const nixlPluginHandle> nixlPluginManager::loadPluginFromPath(const std::string& plugin_path) {
     // Open the plugin file
     void* handle = dlopen(plugin_path.c_str(), RTLD_NOW | RTLD_LOCAL);
+
     if (!handle) {
         NIXL_ERROR << "Failed to load plugin from " << plugin_path << ": " << dlerror();
         return nullptr;
+    }
+    else
+    {
+        std::cout << "Loaded plugin from " << plugin_path << std::endl;
     }
 
     // Get the initialization function
@@ -203,8 +209,9 @@ nixlPluginManager::nixlPluginManager() {
 
     std::string plugin_dir = getPluginDir();
     if (!plugin_dir.empty()) {
-        NIXL_DEBUG << "Loading plugins from: " << plugin_dir;
+        std::cout << "Loading plugins from: " << plugin_dir;
         plugin_dirs_.insert(plugin_dirs_.begin(), plugin_dir);
+        std::cout << "\nCalling discoverPluginsFromDir using plugin_dir" << plugin_dir << std::endl;
         discoverPluginsFromDir(plugin_dir);
     }
 
@@ -245,7 +252,8 @@ void nixlPluginManager::addPluginDirectory(const std::string& directory) {
         // Prioritize the new directory by inserting it at the beginning
         plugin_dirs_.insert(plugin_dirs_.begin(), directory);
     }
-
+    
+    std::cout << "\nCalling discoverPluginsFromDir " << directory << std::endl;
     discoverPluginsFromDir(directory);
 }
 
@@ -271,6 +279,8 @@ std::shared_ptr<const nixlPluginHandle> nixlPluginManager::loadPlugin(const std:
             plugin_path = dir + "/libplugin_" + plugin_name + ".so";
         }
 
+        std::cout << plugin_path << " created\n"; 
+
         // Check if the plugin file exists before attempting to load i
         if (!std::filesystem::exists(plugin_path)) {
             NIXL_WARN << "Plugin file does not exist: " << plugin_path;
@@ -289,10 +299,15 @@ std::shared_ptr<const nixlPluginHandle> nixlPluginManager::loadPlugin(const std:
     return nullptr;
 }
 
-void nixlPluginManager::discoverPluginsFromDir(const std::string& dirpath) {
+void nixlPluginManager::discoverPluginsFromDir(const std::string& dirpath) 
+{
+
+    std::cout << "\nThe directory path given is " << dirpath << std::endl;
+
     std::filesystem::path dir_path(dirpath);
     std::error_code ec;
     std::filesystem::directory_iterator dir_iter(dir_path, ec);
+
     if (ec) {
         NIXL_ERROR << "Error accessing directory(" << dir_path << "): "
                    << ec.message();
@@ -301,6 +316,8 @@ void nixlPluginManager::discoverPluginsFromDir(const std::string& dirpath) {
 
     for (const auto& entry : dir_iter) {
         std::string filename = entry.path().filename().string();
+        
+        std::cout << "In discoverPluginsFromDir " << filename << " " << filename.substr(0, 10) << " " << filename.substr(filename.size() - 3) << std::endl;
 
         if(filename.size() < 11) continue;
         // Check if this is a plugin file

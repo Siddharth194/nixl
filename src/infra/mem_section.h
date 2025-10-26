@@ -103,7 +103,8 @@ class nixlMemSection {
 
         nixl_status_t populate (const nixl_xfer_dlist_t &query,
                                 nixlBackendEngine* backend,
-                                nixl_meta_dlist_t &resp) const;
+                                nixl_meta_dlist_t &resp,
+                                bool remoteAddr = false) const;
 
 
         virtual ~nixlMemSection () = 0; // Making the class abstract
@@ -147,6 +148,8 @@ class nixlRemoteSection : public nixlMemSection {
         nixl_status_t loadLocalData (const nixl_sec_dlist_t& mem_elms,
                                      nixlBackendEngine* backend);
         ~nixlRemoteSection();
+
+        nixl_status_t getFirstMetaDesc(nixl_mem_t mem, nixlBackendEngine* backend, nixlSectionDesc &out);
 };
 
 #endif
