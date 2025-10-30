@@ -301,7 +301,6 @@ std::shared_ptr<const nixlPluginHandle> nixlPluginManager::loadPlugin(const std:
 
 void nixlPluginManager::discoverPluginsFromDir(const std::string& dirpath) 
 {
-
     std::cout << "\nThe directory path given is " << dirpath << std::endl;
 
     std::filesystem::path dir_path(dirpath);

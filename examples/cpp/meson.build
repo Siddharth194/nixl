@@ -27,6 +27,13 @@ nixl_example = executable('nixl_test',
         link_with: [serdes_lib],
         install: true)
 
+nixl_example = executable('nixl_libfabric_test',
+        'libfabric_nixl_test.cpp',
+        dependencies: [nixl_dep, nixl_infra, nixl_common_deps, nixl_test_utils_dep],
+        include_directories: [nixl_inc_dirs, utils_inc_dirs],
+        link_with: [serdes_lib],
+        install: true)
+
 # nixl_example = executable('nixl_test_2',
 #         'nixl_test_2.cpp',
 #         dependencies: [nixl_dep, nixl_infra, nixl_common_deps, nixl_test_utils_dep],

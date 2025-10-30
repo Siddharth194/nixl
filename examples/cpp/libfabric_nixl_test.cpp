@@ -28,14 +28,14 @@ void runAgent1()
     
     nixlAgent* agent1 = createAgent(AGENT1_NAME, true, 10000);
     
-    // Get UCX backend
+    // Get LIBFABRIC backend
     nixl_b_params_t init_params;
     nixl_mem_list_t mems;
-    nixl_status_t status = agent1->getPluginParams("UCX", mems, init_params);
+    nixl_status_t status = agent1->getPluginParams("LIBFABRIC", mems, init_params);
     assert(status == NIXL_SUCCESS);
     
-    nixlBackendH* ucx_backend = nullptr;
-    status = agent1->createBackend("UCX", init_params, ucx_backend);
+    nixlBackendH* libfabric_backend = nullptr;
+    status = agent1->createBackend("LIBFABRIC", init_params, libfabric_backend);
     assert(status == NIXL_SUCCESS);
     
     // Register some memory
@@ -52,12 +52,22 @@ void runAgent1()
     dlist.addDesc(desc);
     
     nixl_opt_args_t extra_params;
-    extra_params.backends.push_back(ucx_backend);
+    extra_params.backends.push_back(libfabric_backend);
     status = agent1->registerMem(dlist, &extra_params);
 
     assert(status == NIXL_SUCCESS);
     
     std::cout << "Agent1 memory registered at: " << buffer << std::endl;
+
+    // Dump the data Agent1 is going to send
+    std::cout << "Agent1: dumping initial buffer contents (first 128 bytes):";
+    uint8_t* b = reinterpret_cast<uint8_t*>(buffer);
+    for (size_t i = 0; i < 128; ++i) {
+        if (i % 16 == 0) std::printf("\n%08zx: ", i);
+        std::printf("%02x ", b[i]);
+    }
+    std::printf("\n");
+
     
     // Send metadata to Agent2
     nixl_opt_args_t send_params;
@@ -96,7 +106,7 @@ void runAgent1()
 
     // Query the loaded remote section for a concrete base address (first registered descriptor)
     uintptr_t remote_base = 0;
-    status = agent1->getRemoteFirstAddr(AGENT2_NAME, DRAM_SEG, (nixl_backend_t)"UCX", remote_base);
+    status = agent1->getRemoteFirstAddr(AGENT2_NAME, DRAM_SEG, (nixl_backend_t)"LIBFABRIC", remote_base);
     if (status != NIXL_SUCCESS) {
         std::cerr << "Agent1: could not obtain remote base addr: " << nixlEnumStrings::statusStr(status) << std::endl;
         // You can choose to wait/retry here instead of aborting
@@ -133,6 +143,10 @@ void runAgent1()
 
     // createXferReq may fail until remote metadata is fully loaded; retry a few times
     int create_retries = 20;
+
+    std::cout << "DEBUG SRC: addr=" << (void*)src.addr << " len=" << src.len << " devId=" << src.devId << std::endl;
+    std::cout << "DEBUG DST: addr=" << (void*)dst.addr << " len=" << dst.len << " devId=" << dst.devId << std::endl;
+
     while (create_retries-- > 0) 
     {
         std::cout << std::endl << std::endl;
@@ -190,11 +204,11 @@ void runAgent2() {
     // Get UCX backend
     nixl_b_params_t init_params;
     nixl_mem_list_t mems;
-    nixl_status_t status = agent2->getPluginParams("UCX", mems, init_params);
+    nixl_status_t status = agent2->getPluginParams("LIBFABRIC", mems, init_params);
     assert(status == NIXL_SUCCESS);
     
-    nixlBackendH* ucx_backend = nullptr;
-    status = agent2->createBackend("UCX", init_params, ucx_backend);
+    nixlBackendH* libfabric_backend = nullptr;
+    status = agent2->createBackend("LIBFABRIC", init_params, libfabric_backend);
     assert(status == NIXL_SUCCESS);
     
     // Register some memory (receiver)
@@ -211,7 +225,7 @@ void runAgent2() {
     dlist.addDesc(desc);
     
     nixl_opt_args_t extra_params;
-    extra_params.backends.push_back(ucx_backend);
+    extra_params.backends.push_back(libfabric_backend);
     status = agent2->registerMem(dlist, &extra_params);
     
     assert(status == NIXL_SUCCESS);
@@ -278,6 +292,16 @@ void runAgent2() {
             }
         }
         std::cout << "Agent2: data verification: " << (ok ? "OK" : "MISMATCH") << std::endl;
+
+        // Dump received data for inspection
+        size_t dump_off = dst_offset;
+        size_t dump_len = 128;
+        uint8_t* b = (uint8_t*)buffer;
+        for (size_t i = 0; i < dump_len; ++i) {
+            if (i % 16 == 0) std::printf("\n%08zx: ", dump_off + i);
+            std::printf("%02x ", b[dump_off + i]);
+        }
+        std::printf("\n");
     }
 }
 
